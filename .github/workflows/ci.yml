@@ -43,14 +43,22 @@ jobs:
         run: |
           pingtun_raw=0
           if [ '${{ matrix.mode }}' = legacy ]; then pingtun_raw=1; fi
-          sudo env PINGTUN_LAB_MODE='${{ matrix.mode }}' PINGTUN_LAB_RAW="$pingtun_raw" PINGTUN_LAB_ID_MODE=rotate ./tests/netns.sh "$PWD/bin/pingtun" "$RUNNER_TEMP/pingtun-lab"
+          # Namespace root cannot override permissions on runner-owned private
+          # checkout ancestors. Stage only lab inputs in root-owned /tmp paths.
+          pingtun_stage=/tmp/pingtun-ci-inputs
+          sudo install -d -m 700 "$pingtun_stage" "$pingtun_stage/bin" "$pingtun_stage/tests" "$pingtun_stage/deploy"
+          sudo install -m 755 bin/pingtun "$pingtun_stage/bin/pingtun"
+          sudo install -m 755 tests/netns.sh "$pingtun_stage/tests/netns.sh"
+          sudo install -m 644 tests/http_fixture.py "$pingtun_stage/tests/http_fixture.py"
+          sudo install -m 644 deploy/*.nft "$pingtun_stage/deploy/"
+          sudo env PINGTUN_LAB_MODE='${{ matrix.mode }}' PINGTUN_LAB_RAW="$pingtun_raw" PINGTUN_LAB_ID_MODE=rotate "$pingtun_stage/tests/netns.sh" "$pingtun_stage/bin/pingtun" /tmp/pingtun-ci-results
           if [ '${{ matrix.mode }}' = adaptive ]; then
-            sudo cat "$RUNNER_TEMP/pingtun-lab/adaptive-summary.json"
-            sudo cat "$RUNNER_TEMP/pingtun-lab/idle.json"
+            sudo cat /tmp/pingtun-ci-results/adaptive-summary.json
+            sudo cat /tmp/pingtun-ci-results/idle.json
           fi
       - name: Key-free diagnostics on failure
         if: failure()
         run: |
           for pingtun_log in tunnel-client.log tunnel-server.log http.log probe-server.log; do
-            sudo cat "$RUNNER_TEMP/pingtun-lab/$pingtun_log" 2>/dev/null || true
+            sudo cat "/tmp/pingtun-ci-results/$pingtun_log" 2>/dev/null || true
           done

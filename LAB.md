@@ -16,6 +16,9 @@ Requirements: Linux with user/network/mount namespaces, TUN, `unshare`, `ip`,
 `nft`, `tc`, Python 3 and curl supporting `%{json}`. The script always starts a
 new user, network and mount namespace, including when invoked as root. A host
 that disables unprivileged user namespaces may require `sudo env ...`.
+When using sudo, keep lab inputs/results in directories owned by root with
+traversable ancestors. Root inside a user namespace cannot override permissions
+on another user's private checkout. CI stages only its lab inputs under /tmp.
 
 ## Topology and checks
 
