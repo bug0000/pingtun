@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/bug0000/pingtun/internal/carrier"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,27 @@ func fixture() Config {
 	key[0] = 7
 	k := base64.StdEncoding.EncodeToString(key)
 	return Config{Role: "client", Interface: "pingtun0", Listen: "0.0.0.0", ServerIP: "192.0.2.20", PrivateKey: k, PeerPublicKey: k, TransportKey: k, AllowedIPs: []string{"0.0.0.0/0"}, MTU: 1000, WireMTU: 1280, Lanes: 2, Window: 2, HoldMS: 500}
+}
+
+func TestAdaptiveLimitsAndMTUBudget(t *testing.T) {
+	c := fixture()
+	c.Adaptive = &carrier.AdaptiveConfig{}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	c.MTU = 1150
+	if err := c.Validate(); err == nil {
+		t.Fatal("v2 header overhead ignored")
+	}
+	c = fixture()
+	c.Adaptive = &carrier.AdaptiveConfig{MaxWindow: 129}
+	if err := c.Validate(); err == nil {
+		t.Fatal("unbounded window accepted")
+	}
+	c.Adaptive = &carrier.AdaptiveConfig{IDMode: "automatic"}
+	if err := c.Validate(); err == nil {
+		t.Fatal("unknown identity mode accepted")
+	}
 }
 func TestRejectUnsafeConfig(t *testing.T) {
 	c := fixture()

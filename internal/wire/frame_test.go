@@ -48,6 +48,37 @@ func TestWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestProbeDomainSeparation(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	f := Frame{Kind: Request, Number: 1, Time: now.Unix(), Payload: []byte("generated probe payload")}
+	probe, err := EncodeProbe(f, key(), 128)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = DecodeProbe(probe, key(), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Decode(probe, key(), now); err == nil {
+		t.Fatal("probe accepted as tunnel packet")
+	}
+	copy(probe, "PTUN")
+	if _, err = Decode(probe, key(), now); err == nil {
+		t.Fatal("magic was not authenticated")
+	}
+}
+
+func FuzzDecodeProbe(f *testing.F) {
+	b, _ := EncodeProbe(Frame{Kind: Request, Time: 1700000000}, key(), 128)
+	f.Add(b)
+	f.Add([]byte("PTPB"))
+	f.Fuzz(func(t *testing.T, b []byte) {
+		frame, err := DecodeProbe(b, key(), time.Unix(1700000000, 0))
+		if err == nil && len(frame.Payload) > MaxFrame-HeaderSize {
+			t.Fatal("unbounded probe payload")
+		}
+	})
+}
 func FuzzDecode(f *testing.F) {
 	b, _ := Encode(Frame{Kind: Request, Time: 1700000000}, key(), 512)
 	f.Add(b)

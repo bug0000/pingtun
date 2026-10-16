@@ -17,19 +17,20 @@ import (
 )
 
 type Config struct {
-	Role          string   `json:"role"`
-	Interface     string   `json:"interface"`
-	Listen        string   `json:"listen"`
-	ServerIP      string   `json:"server_ip,omitempty"`
-	PrivateKey    string   `json:"private_key"`
-	PeerPublicKey string   `json:"peer_public_key"`
-	TransportKey  string   `json:"transport_key"`
-	AllowedIPs    []string `json:"allowed_ips"`
-	MTU           int      `json:"mtu"`
-	WireMTU       int      `json:"wire_mtu"`
-	Lanes         int      `json:"lanes"`
-	Window        int      `json:"window"`
-	HoldMS        int      `json:"hold_ms"`
+	Role          string                  `json:"role"`
+	Interface     string                  `json:"interface"`
+	Listen        string                  `json:"listen"`
+	ServerIP      string                  `json:"server_ip,omitempty"`
+	PrivateKey    string                  `json:"private_key"`
+	PeerPublicKey string                  `json:"peer_public_key"`
+	TransportKey  string                  `json:"transport_key"`
+	AllowedIPs    []string                `json:"allowed_ips"`
+	MTU           int                     `json:"mtu"`
+	WireMTU       int                     `json:"wire_mtu"`
+	Lanes         int                     `json:"lanes"`
+	Window        int                     `json:"window"`
+	HoldMS        int                     `json:"hold_ms"`
+	Adaptive      *carrier.AdaptiveConfig `json:"adaptive,omitempty"`
 }
 
 func Key(s string) ([32]byte, error) {
@@ -102,7 +103,11 @@ func (c Config) Validate() error {
 		return e
 	}
 	// WireGuard transport: 16-byte header, 16-byte tag, and inner-IP padding to 16 bytes.
-	if c.MTU < 68 || 32+((c.MTU+15)/16)*16 > c.WireMTU-28-wire.HeaderSize {
+	header := wire.HeaderSize
+	if c.Adaptive != nil {
+		header = wire.AdaptiveHeaderSize
+	}
+	if c.MTU < 68 || 32+((c.MTU+15)/16)*16 > c.WireMTU-28-header {
 		return errors.New("TUN MTU does not fit the authenticated ICMP carrier")
 	}
 	return nil
@@ -121,6 +126,7 @@ func (c Config) Carrier() (carrier.Config, error) {
 	}
 	cc := carrier.Config{Server: c.Role == "server", Remote: remote, Key: key, Lanes: c.Lanes, Window: c.Window, WireMTU: c.WireMTU, Hold: time.Duration(c.HoldMS) * time.Millisecond, Timeout: time.Duration(c.HoldMS)*time.Millisecond + 2*time.Second}
 	cc.Socket = func() (carrier.EchoSocket, error) { return carrier.Listen(c.Listen) }
+	cc.Adaptive = c.Adaptive
 	return cc, nil
 }
 func (c Config) IPC() (string, error) {

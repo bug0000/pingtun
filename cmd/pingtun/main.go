@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/bug0000/pingtun/internal/carrier"
 	"github.com/bug0000/pingtun/internal/config"
@@ -23,7 +24,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const version = "0.1.0-dev"
+const version = "0.2.0-dev"
 
 func main() {
 	if e := run(os.Args[1:]); e != nil {
@@ -33,12 +34,14 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: pingtun init --server IPv4 --dir DIR | run --config FILE | check --config FILE | version")
+		return errors.New("usage: pingtun init | run | check | probe | probe-server | version (use COMMAND -h for options)")
 	}
 	switch args[0] {
 	case "version":
 		fmt.Println("pingtun", version)
 		return nil
+	case "probe", "probe-server":
+		return probeCommand(args[0], args[1:])
 	case "init":
 		fs := flag.NewFlagSet("init", flag.ContinueOnError)
 		server := fs.String("server", "", "server's public IPv4 address")
@@ -50,8 +53,12 @@ func run(args []string) error {
 	case "check", "run":
 		fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 		path := fs.String("config", "", "mode 0600 JSON config")
+		statsEvery := fs.Duration("stats-interval", 0, "optional key-free JSON statistics interval (at least 1s)")
 		if e := fs.Parse(args[1:]); e != nil {
 			return e
+		}
+		if *statsEvery < 0 || (*statsEvery > 0 && *statsEvery < time.Second) {
+			return errors.New("stats-interval must be zero or at least 1s")
 		}
 		c, e := config.Load(*path)
 		if e != nil {
@@ -92,18 +99,50 @@ func run(args []string) error {
 		}
 		fmt.Printf("pingtun %s active on %s (%d logical lanes); addresses and routes remain manual\n", version, c.Interface, c.Lanes)
 		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+		signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR1)
 		defer signal.Stop(stop)
-		select {
-		case <-stop:
-		case <-bind.Done():
-			return errors.New("ICMP carrier stopped unexpectedly")
+		var ticks <-chan time.Time
+		if *statsEvery > 0 {
+			ticker := time.NewTicker(*statsEvery)
+			defer ticker.Stop()
+			ticks = ticker.C
 		}
-		fmt.Printf("stopping; echo_sent=%d wg_datagrams_received=%d invalid=%d dropped=%d expired=%d\n", bind.Stats.Sent.Load(), bind.Stats.Received.Load(), bind.Stats.Invalid.Load(), bind.Stats.Dropped.Load(), bind.Stats.Expired.Load())
-		return nil
+		for {
+			select {
+			case sig := <-stop:
+				if sig == syscall.SIGUSR1 {
+					json.NewEncoder(os.Stdout).Encode(bind.Snapshot())
+					continue
+				}
+				json.NewEncoder(os.Stdout).Encode(bind.Snapshot())
+				return nil
+			case <-bind.Done():
+				return errors.New("ICMP carrier stopped unexpectedly")
+			case <-bind.Restarts():
+				if err := resetPeer(dev, c, ipc); err != nil {
+					return err
+				}
+			case <-ticks:
+				json.NewEncoder(os.Stdout).Encode(bind.Snapshot())
+			}
+		}
 	default:
 		return errors.New("unknown subcommand")
 	}
+}
+
+func resetPeer(dev *device.Device, c config.Config, ipc string) error {
+	pub, err := config.Key(c.PeerPublicKey)
+	if err != nil {
+		return err
+	}
+	if err = dev.IpcSet(fmt.Sprintf("public_key=%x\nremove=true\n", pub)); err != nil {
+		return errors.New("reset WireGuard peer failed")
+	}
+	if err = dev.IpcSet(ipc); err != nil {
+		return errors.New("restore WireGuard peer failed")
+	}
+	return nil
 }
 func pair() (string, string, error) {
 	k, e := ecdh.X25519().GenerateKey(rand.Reader)

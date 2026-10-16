@@ -29,13 +29,20 @@ are never changed by the daemon.
 
 ## Known gaps
 
-- Real NAT/firewall compatibility and kernel-echo suppression need laboratory
-  testing. The supplied nftables file is documented and **not applied by code**.
+- Linux NAT/firewall behavior and echo suppression have isolated lab coverage;
+  other devices and real-path v2 operation remain unvalidated. The supplied nft
+  files are **not applied by the daemon**.
 - A valid carrier MAC is not a stateless source-address cookie. A party holding
   the carrier key can spoof addresses where its network allows spoofing.
 - Server cache replay state is not persistent across restarts; see PROTOCOL.md.
-- There is no independent per-source rate limiter or congestion control. Bounded
-  memory is not protection from CPU/packet-rate exhaustion.
+- V2 and the diagnostic responder have a global authenticated admission limit;
+  v1 has no such limiter. There is no independent per-source/cookie-based admission
+  control. Bounded memory is not protection from CPU/packet-rate exhaustion.
+- V2's packet pacer and AIMD-like window are experimental, not a proven congestion
+  controller. A carrier-key holder can also spoof restart epochs and disrupt the
+  encrypted peer. Epochs are liveness hints, not replacements for WireGuard identity.
+- V2 reveals idle/active transitions through short control frames versus full
+  data frames; the reduced background traffic is not traffic camouflage.
 - Clock freshness depends on synchronized clocks. There is no protocol negotiation
   for changing MTU, keys, lanes or version while running.
 - Fuzz tests cover the carrier decoder; they are not a full protocol-state fuzzer.

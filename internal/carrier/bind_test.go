@@ -74,12 +74,23 @@ func testPacket(src, dst netip.Addr, n byte) []byte {
 	return b
 }
 func TestEncryptedRoundTripAcrossLanes(t *testing.T) {
+	encryptedRoundTrip(t, false)
+}
+func TestEncryptedAdaptiveRoundTrip(t *testing.T) {
+	encryptedRoundTrip(t, true)
+}
+func encryptedRoundTrip(t *testing.T, adaptive bool) {
 	clientSocket, serverSocket := socketPair()
-	clientBind, e := New(testConfig(clientSocket, false))
+	cc, sc := testConfig(clientSocket, false), testConfig(serverSocket, true)
+	if adaptive {
+		cc.Adaptive = &AdaptiveConfig{IdleMS: 100, IDMode: "stable"}
+		sc.Adaptive = &AdaptiveConfig{IdleMS: 100, IDMode: "stable"}
+	}
+	clientBind, e := New(cc)
 	if e != nil {
 		t.Fatal(e)
 	}
-	serverBind, e := New(testConfig(serverSocket, true))
+	serverBind, e := New(sc)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -145,11 +156,21 @@ func TestEncryptedRoundTripAcrossLanes(t *testing.T) {
 	defer clientSocket.mu.Unlock()
 	lanes := map[uint16]bool{}
 	for _, p := range clientSocket.capture {
-		f, e := wire.Decode(p.Data, clientBind.cfg.Key[:], time.Now())
+		var lane uint16
+		var e error
+		if adaptive {
+			var f wire.AdaptiveFrame
+			f, e = wire.DecodeAdaptive(p.Data, clientBind.cfg.Key[:], time.Now())
+			lane = f.Lane
+		} else {
+			var f wire.Frame
+			f, e = wire.Decode(p.Data, clientBind.cfg.Key[:], time.Now())
+			lane = f.Lane
+		}
 		if e != nil {
 			t.Fatal(e)
 		}
-		lanes[f.Lane] = true
+		lanes[lane] = true
 		if bytes.Contains(p.Data, testPacket(ci, si, 0)[20:52]) {
 			t.Fatal("plaintext inner packet found in carrier")
 		}

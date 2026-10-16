@@ -31,6 +31,7 @@ type Config struct {
 	Hold          time.Duration
 	Timeout       time.Duration
 	Socket        func() (EchoSocket, error)
+	Adaptive      *AdaptiveConfig
 }
 
 func (c Config) Validate() error {
@@ -46,10 +47,18 @@ func (c Config) Validate() error {
 	if c.Socket == nil {
 		return errors.New("socket factory required")
 	}
+	if c.Adaptive != nil {
+		if err := c.Adaptive.settings().validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-type Stats struct{ Sent, Received, Invalid, Dropped, Expired atomic.Uint64 }
+type Stats struct {
+	Sent, Received, Invalid, Dropped, Expired                                                            atomic.Uint64
+	WireSent, WireReceived, DataSent, ControlSent, Window, PeakOutstanding, RTTUS, PeerRestarts, Limited atomic.Uint64
+}
 type Endpoint struct{ IP netip.Addr }
 
 func (e *Endpoint) ClearSrc()           {}
@@ -65,8 +74,9 @@ type message struct {
 	created time.Time
 }
 type incoming struct {
-	packet Echo
-	frame  wire.Frame
+	packet   Echo
+	frame    wire.Frame
+	adaptive wire.AdaptiveFrame
 }
 type ticket struct {
 	packet   Echo
@@ -87,10 +97,11 @@ type generation struct {
 	workers  sync.WaitGroup
 }
 type Bind struct {
-	cfg   Config
-	mu    sync.Mutex
-	gen   *generation
-	Stats Stats
+	cfg      Config
+	mu       sync.Mutex
+	gen      *generation
+	Stats    Stats
+	restarts chan struct{}
 }
 
 var _ conn.Bind = (*Bind)(nil)
@@ -99,7 +110,11 @@ func New(c Config) (*Bind, error) {
 	if e := c.Validate(); e != nil {
 		return nil, e
 	}
-	return &Bind{cfg: c}, nil
+	if c.Adaptive != nil {
+		v := c.Adaptive.settings()
+		c.Adaptive = &v
+	}
+	return &Bind{cfg: c, restarts: make(chan struct{}, 1)}, nil
 }
 func (b *Bind) BatchSize() int { return 1 }
 func (b *Bind) SetMark(mark uint32) error {
@@ -138,7 +153,13 @@ func (b *Bind) Open(_ uint16) ([]conn.ReceiveFunc, uint16, error) {
 	go func() { defer g.workers.Done(); b.read(g) }()
 	go func() {
 		defer g.workers.Done()
-		if b.cfg.Server {
+		if b.cfg.Adaptive != nil {
+			if b.cfg.Server {
+				b.adaptiveServer(g, binary.BigEndian.Uint64(id[:8])|1)
+			} else {
+				b.adaptiveClient(g, id)
+			}
+		} else if b.cfg.Server {
 			b.server(g)
 		} else {
 			b.client(g, id)
@@ -203,7 +224,11 @@ func (b *Bind) Send(bufs [][]byte, ep conn.Endpoint) error {
 		return net.ErrClosed
 	}
 	for _, buf := range bufs {
-		if len(buf) > b.cfg.WireMTU-28-wire.HeaderSize {
+		header := wire.HeaderSize
+		if b.cfg.Adaptive != nil {
+			header = wire.AdaptiveHeaderSize
+		}
+		if len(buf) > b.cfg.WireMTU-28-header {
 			return fmt.Errorf("datagram %d exceeds carrier budget", len(buf))
 		}
 		m := message{append([]byte(nil), buf...), endpoint.IP, time.Now()}
@@ -225,6 +250,10 @@ func (b *Bind) read(g *generation) {
 			g.cancel()
 			return
 		}
+		if b.cfg.Adaptive != nil {
+			b.readAdaptive(g, p)
+			continue
+		}
 		if len(p.Data) != b.cfg.WireMTU-28 || p.Reply == b.cfg.Server || (!b.cfg.Server && p.Addr != b.cfg.Remote) {
 			b.Stats.Invalid.Add(1)
 			continue
@@ -235,7 +264,7 @@ func (b *Bind) read(g *generation) {
 			continue
 		}
 		select {
-		case g.input <- incoming{p, f}:
+		case g.input <- incoming{packet: p, frame: f}:
 		case <-g.ctx.Done():
 			return
 		default:
