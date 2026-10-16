@@ -1,0 +1,8 @@
+# Apply only on the server. This table touches only reflected PTUN v1 request
+# payloads (magic + version + kind), never normal ping or PTUN response frames.
+table ip pingtun_echo {
+ chain output {
+  type filter hook output priority filter; policy accept;
+  icmp type echo-reply @th,64,48 0x5054554e0101 counter drop
+ }
+}
