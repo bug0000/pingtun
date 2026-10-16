@@ -17,10 +17,10 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
 	"github.com/bug0000/pingtun/internal/carrier"
 	"github.com/bug0000/pingtun/internal/config"
+	"golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
 const version = "0.1.0-dev"

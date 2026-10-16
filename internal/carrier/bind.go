@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.zx2c4.com/wireguard/conn"
 	"github.com/bug0000/pingtun/internal/wire"
+	"golang.zx2c4.com/wireguard/conn"
 )
 
 const queueLimit = 256

@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bug0000/pingtun/internal/wire"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun/tuntest"
-	"github.com/bug0000/pingtun/internal/wire"
 )
 
 type memorySocket struct {
