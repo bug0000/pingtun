@@ -1,5 +1,8 @@
 /bin/
 /configs/
+client.json
+server.json
+*.pingtun.json
 *.key
 *.prof
 /coverage.out
