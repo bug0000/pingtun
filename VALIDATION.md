@@ -66,9 +66,10 @@ now use the isolated lab to separate implementation behavior from that path.
 - JNI libraries build for Android arm64-v8a/x86_64. ELF LOAD segments align to
   16 KiB. Debug/release APKs and instrumentation APK build; Android lint and
   release vital checks pass (dependency-version/localization warnings remain).
-- Instrumentation covers unprivileged app socket creation, private profile
-  metadata, Keystore encryption and tamper detection. See the Android workflow
-  result for emulator execution on the published commit.
+- Stock Android 15/x86_64 emulator: application installs and launches; all
+  three instrumentation tests pass under the app UID (unprivileged ICMP socket
+  creation, private metadata, Keystore encryption and tamper detection).
+  The Android workflow records its launch screenshot and test output.
 
 Pixel 9 Pro with GrapheneOS has not been tested yet. There is no claim of
 working phone TUN routing, protected-socket egress, Wi-Fi/mobile handoff, Doze,

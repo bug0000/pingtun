@@ -59,7 +59,11 @@ public final class MainActivity extends Activity {
         profile = label(body, "Профиль не выбран", 19, true);
         status = label(body, "Отключено", 27, true); detail = label(body, "", 15, false);
         counters = label(body, "", 14, false);
-        connect = button(body, "Подключить"); connect.setBackgroundTintList(ColorStateList.valueOf(Color.rgb(0, 107, 101))); connect.setTextColor(Color.WHITE);
+        connect = button(body, "Подключить");
+        connect.setBackgroundTintList(new ColorStateList(new int[][]{{android.R.attr.state_enabled}, {}},
+            new int[]{Color.rgb(0, 107, 101), Color.rgb(220, 228, 229)}));
+        connect.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_enabled}, {}},
+            new int[]{Color.WHITE, Color.rgb(88, 105, 108)}));
         connect.setOnClickListener(v -> {
             if (VpnState.running) startService(new Intent(this, TunnelService.class).setAction(TunnelService.STOP));
             else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
