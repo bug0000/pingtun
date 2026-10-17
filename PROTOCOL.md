@@ -1,4 +1,4 @@
-# Carrier protocol v1 (experimental)
+# Carrier protocols — pingtun 0.3.0
 
 ## Layers
 
@@ -13,7 +13,7 @@ inner IPv4 packet
 This is a new carrier, not a reimplementation of WireGuard cryptography. It is
 incompatible with ordinary WireGuard UDP endpoints and with Hans.
 
-## Frame
+## Legacy v1 frame
 
 All integers are big-endian. ICMP payload size is `wire_mtu - 28`. The outer IP
 header is assumed to be the normal 20-byte IPv4 header and ICMP adds 8 bytes.
@@ -94,3 +94,94 @@ This is concurrent request credit, not adaptive physical multipath. There is no
 bandwidth estimator, RTT scheduler, congestion controller or independent path
 failure detector in v1. Multiple lanes on one source/destination path share
 provider rate limits. More lanes can increase overhead or loss instead of speed.
+
+## Adaptive v2 frame
+
+V2 requires an `adaptive` object on both endpoints. New 0.3.0 config pairs use
+v2 by default. Existing configs without that object retain v1; `init --legacy`
+generates v1 explicitly. The modes reject each other's frames without negotiation
+or silent downgrade.
+V2 retains the same cryptographic layers and single-peer restrictions.
+
+| Offset | Bytes | Field |
+|---:|---:|---|
+| 0 | 4 | `PTUN` magic |
+| 4 | 1 | version: 2 |
+| 5 | 1 | kind: request 1, response 2 |
+| 6 | 2 | logical lane |
+| 8 | 16 | random client session ID |
+| 24 | 8 | request counter |
+| 32 | 8 | Unix timestamp, seconds |
+| 40 | 2 | WireGuard datagram length |
+| 42 | 2 | queued response datagrams for this source (hint) |
+| 44 | 8 | nonzero server generation epoch in responses |
+| 52 | 4 | server holding time, microseconds |
+| 56 | 1 | flags: bit 0 = short control |
+| 57 | 7 | reserved, must be zero |
+| 64 | 16 | truncated HMAC-SHA-256 |
+| 80 | variable | WireGuard datagram, then zero padding |
+
+The MAC covers bytes 0–63 followed by bytes 80–end, including padding. Freshness
+is 30 seconds. Requests must have zero backlog, epoch and holding time; responses
+must have a nonzero epoch. Unknown flags and nonzero reserved bytes are rejected.
+A short control has no payload and exactly 80 ICMP payload bytes (108 IPv4 wire
+bytes). All other frames use the configured full wire size.
+
+Each admitted request grants at most one **equal-size** response, matched to its
+ICMP tuple, counter, session, lane and control flag. Short controls are answered
+immediately and advertise only backlog/epoch; data requires a full-size credit.
+The server holds empty full-size requests for up to 25 ms, or data-carrying
+requests for up to 5 ms, subject to scheduler timing. Ready data can be returned
+earlier. Responses authenticate actual holding time.
+
+### Pacing, idle and recovery
+
+All lanes share a token-bucket pacer with a four-packet burst and one adaptive
+window capped at 128. It starts at `max(4, lanes × window)`, capped by
+`max_window`. Useful acknowledgements grow it additively; expiry halves it to a
+floor of two, at most once per RTT (minimum 100 ms). Pacing is capped by both
+`max_pps` and approximately `1.1 × window / max(RTT, 5 ms)`. RTT is an EWMA after
+subtracting authenticated holding time. Request timeout adapts with RTT and
+backs off on loss, capped by configured carrier timeout. This initial controller
+is not yet a validated TCP-fair congestion-control algorithm.
+
+Outbound datagrams take priority over empty polls. Empty polls reserve a quarter
+of the current window (at least one slot) for data. After activity grace of
+`max(150 ms, 2 × RTT)`, the client returns to one short control per `idle_ms`.
+Server-originated traffic may wait for that control and a full-size credit.
+WireGuard keepalives add traffic. No carrier retransmission or ordered byte
+stream is introduced.
+
+The server has one authenticated admission limiter (`max_pps`, burst 32), eight
+replay sessions, 256 waiting credits and bounded datagram queues. Limiting
+follows MAC validation; it does not protect against arbitrary raw traffic CPU
+exhaustion. V1's cross-restart replay-cache limitation also applies.
+
+The server chooses a fresh random nonzero 64-bit epoch per bind generation.
+A changed epoch in a valid current ticket clears client stale ciphertext and
+credits and signals the daemon to recreate its configured WireGuard peer,
+preserving the TUN and routes. A bounded FIFO remembers eight retired epochs.
+This is single-peer restart recovery, not durable epoch history, zero-loss
+migration or multi-server failover. A carrier-key holder can forge metadata and
+force disruptive resets.
+
+`stable` ID mode uses a fixed random-base identifier per lane with changing
+16-bit sequences. `rotate` maps low counter bits to ID and higher bits to sequence,
+preserving v1's pattern. Neither mode guarantees traversal of a specific firewall.
+
+### Observability
+
+SIGUSR1 or `run --stats-interval` emits key-free JSON. V2 includes wire bytes,
+data/control frames, window/peak outstanding, estimated RTT, admission limiting,
+expiry and peer restarts. Snapshots read separate atomic counters and are
+approximate, not transactional. V1 reports basic counts; extra v2 metrics may
+remain zero. Wire bytes exclude link headers, invalid traffic and kernel echoes.
+
+## Diagnostic domain
+
+`probe` / `probe-server` use the v1 58-byte layout with **`PTPB`** magic included
+in the MAC. Tunnel parsers reject this domain. Payload is a counter-derived test
+pattern; the responder XORs every byte with `0xa5` and changes the authenticated
+kind. Kernel reflections cannot be successful responses. Probes contain no user
+IP or WireGuard packets. Replay state and admission rate are bounded; each fresh
+request grants one equal-size response.

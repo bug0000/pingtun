@@ -1,0 +1,8 @@
+# Optional, server only. Remove with: nft delete table ip pingtun_probe_echo
+# Suppress the kernel's reflection of PTPB v1 requests, not normal ping or PTUN.
+table ip pingtun_probe_echo {
+ chain output {
+  type filter hook output priority filter; policy accept;
+  icmp type echo-reply @th,64,48 0x505450420101 counter drop
+ }
+}

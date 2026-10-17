@@ -31,11 +31,21 @@ type Frame struct {
 // Encode pads every request and response to the same configured size, including
 // padding in the MAC. No secret or live payload is ever reused as padding.
 func Encode(f Frame, key []byte, size int) ([]byte, error) {
+	return encode(f, key, size, "PTUN")
+}
+
+// EncodeProbe uses a separate authenticated domain so diagnostics cannot be
+// mistaken for WireGuard datagrams by a running tunnel.
+func EncodeProbe(f Frame, key []byte, size int) ([]byte, error) {
+	return encode(f, key, size, "PTPB")
+}
+
+func encode(f Frame, key []byte, size int, magic string) ([]byte, error) {
 	if len(key) != 32 || size < HeaderSize || size > MaxFrame || len(f.Payload) > size-HeaderSize || (f.Kind != Request && f.Kind != Response) {
 		return nil, ErrFrame
 	}
 	b := make([]byte, size)
-	copy(b, "PTUN")
+	copy(b, magic)
 	b[4] = 1
 	b[5] = f.Kind
 	binary.BigEndian.PutUint16(b[6:8], f.Lane)
@@ -54,8 +64,17 @@ func Encode(f Frame, key []byte, size int) ([]byte, error) {
 // Decode verifies the MAC before trusting lengths, timestamps or session IDs.
 // A 30-second freshness interval bounds replay-cache lifetime and requires NTP.
 func Decode(b, key []byte, now time.Time) (Frame, error) {
+	return decode(b, key, now, "PTUN")
+}
+
+// DecodeProbe accepts only diagnostic frames, never ordinary tunnel frames.
+func DecodeProbe(b, key []byte, now time.Time) (Frame, error) {
+	return decode(b, key, now, "PTPB")
+}
+
+func decode(b, key []byte, now time.Time, magic string) (Frame, error) {
 	var f Frame
-	if len(key) != 32 || len(b) < HeaderSize || len(b) > MaxFrame || string(b[:4]) != "PTUN" || b[4] != 1 {
+	if len(key) != 32 || len(b) < HeaderSize || len(b) > MaxFrame || string(b[:4]) != magic || b[4] != 1 {
 		return f, ErrFrame
 	}
 	mac := hmac.New(sha256.New, key)

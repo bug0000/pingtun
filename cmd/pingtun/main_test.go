@@ -28,6 +28,9 @@ func TestInitPair(t *testing.T) {
 	if client.TransportKey != server.TransportKey || client.PrivateKey == server.PrivateKey {
 		t.Fatal("invalid key separation")
 	}
+	if client.Adaptive == nil || server.Adaptive == nil || client.Adaptive.IDMode != "stable" || client.MTU != 1280 || client.WireMTU != 1440 {
+		t.Fatal("new configs must use the release v2 defaults")
+	}
 	for _, pair := range [][2]string{{client.PrivateKey, server.PeerPublicKey}, {server.PrivateKey, client.PeerPublicKey}} {
 		key, e := config.Key(pair[0])
 		if e != nil {
@@ -47,5 +50,21 @@ func TestInitPair(t *testing.T) {
 	st, e := os.Stat(dir)
 	if e != nil || st.Mode().Perm() != 0700 {
 		t.Fatal("insecure config directory")
+	}
+}
+
+func TestLegacyInitRemainsExplicit(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "legacy")
+	if err := initializeWithMode("192.0.2.20", dir, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{"server", "client"} {
+		c, err := config.Load(filepath.Join(dir, role+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Adaptive != nil || c.MTU != 1000 || c.WireMTU != 1280 {
+			t.Fatal("legacy defaults changed")
+		}
 	}
 }
