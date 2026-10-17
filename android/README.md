@@ -3,8 +3,11 @@
 Native Android client for pingtun, Android 10/API 29 and newer. APKs contain
 arm64-v8a and x86_64 engines. Google Play Services and root are not required by
 the implementation. Actual ICMP availability depends on the OS, app network
-permission, operator and firewall; Pixel 9 Pro/GrapheneOS still needs device
-validation. This is an experimental client, not a production security claim.
+permission, operator and firewall. Initial browsing over LTE was confirmed on
+one Pixel 9 Pro with GrapheneOS and no root on 2026-10-17; the server also
+recorded authenticated traffic and bidirectional forwarded IPv4 flows. This is
+an experimental client, not a production security claim or broad compatibility
+result. The phone's exact OS build and operator were not recorded.
 
 ## Connect
 
@@ -23,7 +26,10 @@ validation. This is an experimental client, not a production security claim.
    Do not commit it, paste it into logs, or reuse another gateway's identity.
 3. Install `server.json` on the server, choose a unique TUN name if another
    pingtun instance runs there, assign the server side of the subnet, and set
-   up forwarding/NAT for this client's address. See the root README and deploy
+   up forwarding/NAT for this client's address. Install private configs and
+   scripts with an explicit server-side owner; extracting an archive as root
+   can preserve an unrelated local UID. A capability-confined root service
+   may then be unable to read a 0600 config. See the root README and deploy
    examples. Generation does not change routes or deploy a server. The current
    server supports one configured encrypted peer per instance.
 4. Transfer `profile.pingtun.json` privately to the phone. Import it from the

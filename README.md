@@ -10,7 +10,9 @@ Measured lab results are not guarantees for a provider or filtering device.
 
 An [Android client preview](android/README.md) is available for Android 10+
 (arm64/x86_64). It uses the system VPN API and ICMP datagram sockets without
-requesting root. Device compatibility and network handoff still need testing.
+requesting root. Initial LTE browsing was confirmed on a Pixel 9 Pro with
+GrapheneOS and no root. Broader compatibility, network handoff and sleep still
+need testing.
 
 ## What works
 

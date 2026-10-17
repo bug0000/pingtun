@@ -71,14 +71,19 @@ now use the isolated lab to separate implementation behavior from that path.
   creation, private metadata, Keystore encryption and tamper detection).
   The Android workflow records its launch screenshot and test output.
 
-Pixel 9 Pro with GrapheneOS has not been tested yet. There is no claim of
-working phone TUN routing, protected-socket egress, Wi-Fi/mobile handoff, Doze,
-or lockdown until tested on the device. Current live gateways are unchanged.
+Initial phone test on 2026-10-17: the user confirmed that a Pixel 9 Pro with
+GrapheneOS, no root and LTE connected and opened websites. An independent
+server instance with a separate peer identity recorded authenticated carrier
+datagrams and bidirectional forwarded IPv4 traffic with NAT. The existing
+gateway binaries and services were not upgraded or restarted for this test.
+The phone's exact OS build and operator were not recorded. This validates one
+basic browsing case; Wi-Fi/mobile handoff, Doze, IPv6 bypass checks, lockdown,
+long sessions and throughput remain unverified on the phone.
 
 ## Remaining validation
 
 Longer soaks, fairness under competing traffic, diverse real NAT/firewalls,
 concurrent bidirectional load, MTU/fragmentation tests, state-machine fuzzing,
 independent review and bounded live-path validation. Physical multipath, FEC,
-multiple peers and production failover are not implemented. The arm64 build
-must be executed on real hardware before claiming runtime support.
+multiple peers and production failover are not implemented. The Android arm64 engine now has one reported hardware run. The Linux
+arm64 CLI binary has only been cross-compiled and still needs runtime testing.
