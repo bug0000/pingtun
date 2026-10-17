@@ -1,5 +1,11 @@
 name: Android
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -24,7 +30,7 @@ jobs:
           pingtun_sdk="$RUNNER_TEMP/android-sdk"
           mkdir -p "$pingtun_sdk/cmdline-tools"
           curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip --output /tmp/android-tools.zip
-          echo 'e025545c62a8e64c7559119566a569fb1dec5f60  /tmp/android-tools.zip' | sha1sum --check
+          echo '0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8  /tmp/android-tools.zip' | sha256sum --check
           unzip -q /tmp/android-tools.zip -d "$pingtun_sdk/cmdline-tools"
           mv "$pingtun_sdk/cmdline-tools/cmdline-tools" "$pingtun_sdk/cmdline-tools/latest"
           echo "ANDROID_HOME=$pingtun_sdk" >> "$GITHUB_ENV"
@@ -49,12 +55,13 @@ jobs:
             android/app/build/reports/lint-results-debug.*
           if-no-files-found: error
       - name: Prepare stock Android emulator
+        timeout-minutes: 8
         run: |
           sdkmanager 'emulator' 'system-images;android-35;default;x86_64'
           echo no | avdmanager create avd --force --name pingtun-ci --package 'system-images;android-35;default;x86_64'
           sudo chmod a+rw /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -avd pingtun-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > /tmp/pingtun-emulator.log 2>&1 &
-          adb wait-for-device
+          "$ANDROID_HOME/emulator/emulator" -avd pingtun-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -accel on -cores 2 -memory 2048 > /tmp/pingtun-emulator.log 2>&1 &
+          timeout 120 adb wait-for-device || { cat /tmp/pingtun-emulator.log; exit 1; }
           for attempt in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then exit 0; fi
             sleep 2
@@ -65,5 +72,18 @@ jobs:
         run: |
           adb install -r android/app/build/outputs/apk/debug/app-debug.apk
           adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          adb shell am start -W io.github.bug0000.pingtun/.MainActivity
+          sleep 2
+          adb shell pidof io.github.bug0000.pingtun
+          adb exec-out screencap -p > /tmp/pingtun-android-preview.png
           adb shell am instrument -w io.github.bug0000.pingtun.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/pingtun-android-tests.txt
           grep -Eq '^OK \([0-9]+ tests?\)' /tmp/pingtun-android-tests.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: pingtun-android-runtime-checks
+          path: |
+            /tmp/pingtun-emulator.log
+            /tmp/pingtun-android-tests.txt
+            /tmp/pingtun-android-preview.png
+          if-no-files-found: warn
