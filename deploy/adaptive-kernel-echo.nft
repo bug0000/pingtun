@@ -1,8 +1,0 @@
-# V2 server only; remove with: nft delete table ip pingtun_adaptive_echo
-# This table leaves ordinary ping, v1 and legitimate v2 replies untouched.
-table ip pingtun_adaptive_echo {
- chain output {
-  type filter hook output priority filter; policy accept;
-  icmp type echo-reply @th,64,48 0x5054554e0201 counter drop
- }
-}
