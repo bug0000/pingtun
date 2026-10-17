@@ -14,12 +14,25 @@ jobs:
         with:
           go-version: '1.27.x'
           cache: true
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Install pinned build tools
         shell: bash
         run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'platform-tools'
+          pingtun_sdk="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$pingtun_sdk/cmdline-tools"
+          curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip --output /tmp/android-tools.zip
+          echo 'e025545c62a8e64c7559119566a569fb1dec5f60  /tmp/android-tools.zip' | sha1sum --check
+          unzip -q /tmp/android-tools.zip -d "$pingtun_sdk/cmdline-tools"
+          mv "$pingtun_sdk/cmdline-tools/cmdline-tools" "$pingtun_sdk/cmdline-tools/latest"
+          echo "ANDROID_HOME=$pingtun_sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$pingtun_sdk" >> "$GITHUB_ENV"
+          echo "$pingtun_sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$pingtun_sdk/platform-tools" >> "$GITHUB_PATH"
+          "$pingtun_sdk/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$pingtun_sdk" --licenses < <(yes) > /tmp/pingtun-sdk-licenses.log
+          "$pingtun_sdk/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$pingtun_sdk" 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'platform-tools'
           curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.13-bin.zip --output /tmp/gradle.zip
           echo '20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78  /tmp/gradle.zip' | sha256sum --check
           unzip -q /tmp/gradle.zip -d /tmp
