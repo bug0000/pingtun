@@ -35,6 +35,8 @@ jobs:
           mv "$pingtun_sdk/cmdline-tools/cmdline-tools" "$pingtun_sdk/cmdline-tools/latest"
           echo "ANDROID_HOME=$pingtun_sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$pingtun_sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_USER_HOME=$RUNNER_TEMP/android-user" >> "$GITHUB_ENV"
+          echo "ANDROID_AVD_HOME=$RUNNER_TEMP/android-avd" >> "$GITHUB_ENV"
           echo "$pingtun_sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$pingtun_sdk/platform-tools" >> "$GITHUB_PATH"
           "$pingtun_sdk/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$pingtun_sdk" --licenses < <(yes) > /tmp/pingtun-sdk-licenses.log
@@ -58,7 +60,11 @@ jobs:
         timeout-minutes: 8
         run: |
           sdkmanager 'emulator' 'system-images;android-35;default;x86_64'
-          echo no | avdmanager create avd --force --name pingtun-ci --package 'system-images;android-35;default;x86_64'
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+          echo no | avdmanager create avd --force --name pingtun-ci --path "$ANDROID_AVD_HOME/pingtun-ci.avd" --package 'system-images;android-35;default;x86_64'
+          test -s "$ANDROID_AVD_HOME/pingtun-ci.ini"
+          echo 'disk.dataPartition.size=1536M' >> "$ANDROID_AVD_HOME/pingtun-ci.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fx pingtun-ci
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd pingtun-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -accel on -cores 2 -memory 2048 > /tmp/pingtun-emulator.log 2>&1 &
           timeout 120 adb wait-for-device || { cat /tmp/pingtun-emulator.log; exit 1; }
