@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=exec
 ExecStart=/usr/local/bin/pingtun run --config /etc/pingtun/%i.json
 Restart=on-failure
 RestartSec=5

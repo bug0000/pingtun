@@ -18,7 +18,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
-          go-version: '1.27.x'
+          go-version: '1.27.2'
           cache: true
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -51,11 +51,16 @@ jobs:
           gradle -p android --no-daemon :app:assembleDebug :app:assembleRelease :app:lintDebug :app:assembleDebugAndroidTest
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pingtun-android-preview
+          name: pingtun-android-builds
           path: |
             android/app/build/outputs/apk/**/*.apk
             android/app/build/reports/lint-results-debug.*
           if-no-files-found: error
+      - name: Verify signed public release APK
+        if: hashFiles('release-artifacts.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release.py verify-apk
       - name: Prepare stock Android emulator
         timeout-minutes: 8
         run: |
@@ -84,6 +89,15 @@ jobs:
           adb exec-out screencap -p > /tmp/pingtun-android-preview.png
           adb shell am instrument -w io.github.bug0000.pingtun.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/pingtun-android-tests.txt
           grep -Eq '^OK \([0-9]+ tests?\)' /tmp/pingtun-android-tests.txt
+      - name: Launch the signed release APK
+        if: hashFiles('release-artifacts.json') != ''
+        run: |
+          adb uninstall io.github.bug0000.pingtun
+          adb install dist/pingtun_0.3.0_android.apk
+          adb shell am start -W io.github.bug0000.pingtun/.MainActivity
+          sleep 2
+          adb shell pidof io.github.bug0000.pingtun
+          adb exec-out screencap -p > /tmp/pingtun-android-release.png
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -92,4 +106,5 @@ jobs:
             /tmp/pingtun-emulator.log
             /tmp/pingtun-android-tests.txt
             /tmp/pingtun-android-preview.png
+            /tmp/pingtun-android-release.png
           if-no-files-found: warn

@@ -6,6 +6,7 @@ server.json
 *.key
 *.prof
 /coverage.out
+/dist/
 
 /android/.gradle/
 /android/**/build/
@@ -13,3 +14,5 @@ server.json
 /android/app/src/main/jniLibs/
 *.jks
 *.keystore
+
+__pycache__/

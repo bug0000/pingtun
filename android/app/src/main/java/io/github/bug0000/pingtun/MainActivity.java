@@ -55,7 +55,7 @@ public final class MainActivity extends Activity {
             return insets;
         });
         scroll.addView(body); setContentView(scroll);
-        label(body, "pingtun", 34, true); label(body, "Экспериментальный ICMP VPN", 16, false);
+        label(body, "pingtun", 34, true); label(body, "VPN поверх ICMP · " + BuildConfig.VERSION_NAME, 16, false);
         profile = label(body, "Профиль не выбран", 19, true);
         status = label(body, "Отключено", 27, true); detail = label(body, "", 15, false);
         counters = label(body, "", 14, false);

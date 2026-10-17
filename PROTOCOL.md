@@ -1,4 +1,4 @@
-# Carrier protocols (experimental)
+# Carrier protocols — pingtun 0.3.0
 
 ## Layers
 
@@ -97,8 +97,10 @@ provider rate limits. More lanes can increase overhead or loss instead of speed.
 
 ## Adaptive v2 frame
 
-V2 requires an `adaptive` object on both endpoints. V1 remains the default; the
-modes reject each other's frames without negotiation or silent downgrade.
+V2 requires an `adaptive` object on both endpoints. New 0.3.0 config pairs use
+v2 by default. Existing configs without that object retain v1; `init --legacy`
+generates v1 explicitly. The modes reject each other's frames without negotiation
+or silent downgrade.
 V2 retains the same cryptographic layers and single-peer restrictions.
 
 | Offset | Bytes | Field |

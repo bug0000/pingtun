@@ -6,6 +6,7 @@ import (
 	"github.com/bug0000/pingtun/internal/carrier"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -14,6 +15,20 @@ func fixture() Config {
 	key[0] = 7
 	k := base64.StdEncoding.EncodeToString(key)
 	return Config{Role: "client", Interface: "pingtun0", Listen: "0.0.0.0", ServerIP: "192.0.2.20", PrivateKey: k, PeerPublicKey: k, TransportKey: k, AllowedIPs: []string{"0.0.0.0/0"}, MTU: 1000, WireMTU: 1280, Lanes: 2, Window: 2, HoldMS: 500}
+}
+
+func TestDecodeBoundsWholePrivateInput(t *testing.T) {
+	data, err := json.Marshal(fixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := string(data) + strings.Repeat(" ", 65536-len(data))
+	if _, err := Decode(strings.NewReader(limit)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Decode(strings.NewReader(limit + " secret trailing bytes")); err == nil {
+		t.Fatal("oversized input silently truncated")
+	}
 }
 
 func TestAdaptiveLimitsAndMTUBudget(t *testing.T) {

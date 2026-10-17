@@ -1,180 +1,79 @@
 # pingtun
 
-An experimental encrypted IPv4 tunnel carried by ICMP echo requests and replies.
-Written from scratch in Go. No Hans code is included.
+[Русский](README.ru.md) · [Install](INSTALL.md) · [Release 0.3.0](https://github.com/bug0000/pingtun/releases/tag/v0.3.0)
 
-**Status: developer preview, not a production VPN.** The encrypted engine and
-carrier are tested in memory and in an isolated Linux NAT lab with real TUN/raw
-sockets, loss and reordering. Protocol v2 is an explicit experimental opt-in.
-Measured lab results are not guarantees for a provider or filtering device.
+**pingtun 0.3.0** is an encrypted IPv4 VPN over ICMP Echo Request/Reply.
+The Linux binary supports both server and CLI client; the Android application
+uses the system VPN API and ICMP datagram sockets without root or Google Play
+Services. WireGuard-go supplies peer authentication, encryption and replay
+protection. The carrier is written in Go; no Hans code is included.
 
-An [Android client preview](android/README.md) is available for Android 10+
-(arm64/x86_64). It uses the system VPN API and ICMP datagram sockets without
-requesting root. Initial LTE browsing was confirmed on a Pixel 9 Pro with
-GrapheneOS and no root. Broader compatibility, network handoff and sleep still
-need testing.
+## Downloads
 
-## What works
+The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.3.0)
+contains Linux amd64/arm64 archives, a signed Android 10+ APK, SHA256SUMS and
+license notices. Android uses the same signing identity as the previous app
+build (versionCode now 2), so it can update it in place. No signing private key,
+VPN profile or live configuration is included. The Android UI is currently Russian.
 
-- WireGuard's userspace implementation handles the authenticated key exchange,
-  encryption, replay protection and inner IPv4 peer authorization.
-- A custom ICMP `conn.Bind` replaces its UDP transport. WireGuard datagrams are
-  carried directly inside ICMP, without a separate outer UDP/IP layer.
-- A separate 256-bit carrier key authenticates requests, polls and replies.
-- Bounded queues, a bounded replay window, request expiry and padded frames.
-- 1–8 logical lanes and 1–16 outstanding requests per lane share **one encrypted
-  peer session**. A session is not identified merely by a client's public IP.
-- Secure config-pair generation, explicit MTU validation, shutdown counters and
-  a systemd example.
-- Independent authenticated ICMP diagnostics without TUN/WireGuard, with JSON
-  packet accounting and stable/rotating identifier modes.
-- Experimental v2: short idle controls, reserved data capacity, a shared packet
-  pacer and adaptive window, bounded restart detection and key-free snapshots.
+## Features and boundaries
 
-Logical lanes provide concurrent request/reply slots and packet distribution.
-They are not independent physical paths, do not evade a shared ICMP rate limit,
-and do not guarantee a speedup. Physical multipath, FEC, IPv6 and automatic
-routing/failover are **not implemented**. V2's initial window controller still
-needs fairness, interoperability and longer stability testing.
+- Adaptive v2: short idle controls, a shared packet pacer/window, bounded queues,
+  logical lanes, server restart recovery and key-free statistics.
+- One encrypted peer per server instance; independent keys for every client.
+- `init` creates v2 pairs with stable IDs, MTU 1280 / outer MTU 1440, two lanes,
+  a 250 packets/s ceiling and a 32-request maximum window. `init --legacy`
+  creates v1 pairs. Existing configs/profiles keep their protocol and identity.
+- `mobile-init` creates a dedicated Android profile. Android stores it with
+  Keystore AES-GCM and retains its TUN while recovering the transport.
+- `probe`/`probe-server` measure authenticated ICMP separately from VPN traffic.
+- The Linux daemon creates only its own TUN. Routing, forwarding and NAT are
+  explicit administrator configuration. See [INSTALL.md](INSTALL.md).
 
-## Build and test
+This release carries **IPv4 only**. Android captures and blocks IPv6. Multiple
+logical lanes share one path and are not physical aggregation. Physical
+multipath, FEC, Windows, multiple peers per instance and automatic network
+failover are not included. ICMP can be blocked or rate-limited. No external
+security audit has been completed; see [SECURITY.md](SECURITY.md).
 
-Linux and Go 1.26 or newer:
+## Quick start
+
+```sh
+pingtun version
+pingtun init --server 203.0.113.10 --dir configs
+pingtun check --config configs/server.json
+# For a separate phone identity:
+pingtun mobile-init --server 203.0.113.10 --dir configs-phone --name Phone --address 10.203.0.2/30
+```
+
+Replace the documentation address and choose a non-overlapping private subnet.
+Generated directories are 0700 and secret files are 0600; existing directories
+are refused. Install configs as root-owned files for the capability-confined
+service. Never publish them or reuse a gateway's identity on a phone. Full
+server, Linux client and Android instructions are in [INSTALL.md](INSTALL.md)
+and [android/README.md](android/README.md).
+
+## Build and validation
+
+Linux, Go 1.27.2:
 
 ```sh
 go test -race ./...
 go vet ./...
-go build -trimpath -o bin/pingtun ./cmd/pingtun
+go build -trimpath -buildvcs=false -o bin/pingtun ./cmd/pingtun
 ```
 
-The tests include a real WireGuard handshake and bidirectional inner-IP traffic
-through the carrier over in-memory echo sockets. They do not need root, TUN or
-Internet access after dependencies have been downloaded.
+CI includes decoder fuzzing, dependency scanning, real WireGuard and Linux
+namespace tests with NAT, loss/reordering, encrypted file checks, blackout and
+server restart recovery. A datagram client is tested with CAP_NET_RAW removed.
+Android CI checks launch, app-UID ICMP and authenticated profile storage in an
+Android 15 emulator. A user confirmed initial LTE browsing on a Pixel 9 Pro
+with GrapheneOS and no root. This is one device/network case; sleep, handoff,
+IPv6 bypass, lockdown and longer sessions still need device validation.
 
-For real TUN, NAT/firewall and recovery checks, see [LAB.md](LAB.md). The lab
-always creates new user/network/mount namespaces and never edits host routes.
-
-## Generate a pair
-
-```sh
-bin/pingtun init --server 203.0.113.10 --dir configs
-bin/pingtun check --config configs/server.json
-bin/pingtun check --config configs/client.json
-```
-
-Replace the documentation-only server address. `init` refuses an existing
-directory, creates it with mode 0700 and writes both configs with mode 0600.
-It prints paths, never keys. Keep `server.json` on the server and `client.json`
-on the client. Each contains one private WireGuard key and the shared carrier
-key. Never commit these files. `check` needs no privileges.
-
-When installing a config for the supplied root service with bounded capabilities,
-set its owner explicitly, e.g.
-`sudo install -o root -g root -m 600 configs/server.json /etc/pingtun/server.json`. Mode 0600 with a different owner
-can prevent the confined service from reading it even when its UID is root.
-
-## Isolated first run
-
-Run each daemon with root privileges, or equivalent `CAP_NET_ADMIN` and
-`CAP_NET_RAW` capabilities plus access to `/dev/net/tun`:
-
-```sh
-sudo bin/pingtun run --config /etc/pingtun/server.json
-# On the other machine:
-sudo bin/pingtun run --config /etc/pingtun/client.json
-```
-
-In separate terminals, assign addresses **after** the daemons have created their
-interfaces:
-
-```sh
-# Server:
-sudo ip address add 10.203.0.1/30 dev pingtun0
-sudo ip link set pingtun0 up
-# Client:
-sudo ip address add 10.203.0.2/30 dev pingtun0
-sudo ip link set pingtun0 up
-ping -I 10.203.0.2 10.203.0.1
-```
-
-Choose a private subnet that does not overlap your network. The daemon creates
-only its own TUN device; it never edits default routes, forwarding, NAT, firewall
-or existing VPNs. The generated `allowed_ips` authorizes traffic cryptographically;
-it does **not** install routes. Internet forwarding requires a separately reviewed
-server forwarding/NAT configuration and an explicit client policy route. Preserve
-a direct route to the public ICMP endpoint before testing routed traffic. Existing
-policy routing can otherwise capture even the private test subnet.
-
-### Kernel echo replies
-
-The kernel may also answer ICMP requests. Those reflected request frames are
-rejected by pingtun, but can interfere with NAT that permits only one reply per
-request. On the server, [deploy/kernel-echo.nft](deploy/kernel-echo.nft) suppresses
-only reflected pingtun **request** frames. Ordinary ping replies and legitimate
-pingtun responses are preserved. Review the rule before applying it:
-
-```sh
-sudo nft -f deploy/kernel-echo.nft
-# Remove only pingtun's table:
-sudo nft delete table ip pingtun_echo
-```
-
-Do not disable all kernel echo replies globally.
-
-### Parallel lanes
-
-This section describes the default legacy v1 transport.
-
-Set matching `lanes` values in both configs. Start with `lanes: 1, window: 2`.
-Compare against `lanes: 2, window: 2` in an isolated lab. Larger windows consume
-more idle bandwidth: with full-size padded requests and replies, the approximate
-idle wire rate is `2 × lanes × window × wire_mtu / hold_seconds` bytes/second,
-excluding Ethernet headers. With defaults this is about **82 kbit/s** across both
-directions. Authentication/keepalive/data can add traffic.
-
-Each reply consumes exactly one authenticated request. Outstanding requests use
-distinct echo identifiers; the receiver never reuses an old request for a second
-reply. Loss is not retransmitted by the carrier: higher-layer protocols recover,
-and WireGuard handles its handshake retries.
-
-### Experimental adaptive transport (v2)
-
-Add this object to **both** generated configs; keep matching MTU and lane values:
-
-```json
-"adaptive": {"max_pps": 1000, "max_window": 128, "idle_ms": 500, "id_mode": "rotate"}
-```
-
-V2 is incompatible with v1. Removing the object selects v1. Install the server's
-separate [v2 echo rule](deploy/adaptive-kernel-echo.nft), not just the v1 rule.
-The daemon itself never installs firewall rules.
-
-Idle controls are 108 IPv4 bytes and each receives one equally sized reply.
-They only advertise queued data; larger requests then grant equally sized data
-replies. This avoids relying on a small request authorizing a large response.
-At a 500 ms idle interval, the control exchange is about 3.46 kbit/s across both
-directions before delivery delays; WireGuard keepalives and wakeup bursts add
-traffic. Active packets share one paced window across all logical lanes.
-
-The server reports its hold time separately from RTT. Timeouts reduce the window;
-useful replies increase it. Empty polls leave space for new uploads. There is no
-outer reliable byte stream and no retransmission of arbitrary IP datagrams.
-
-An authenticated server epoch change resets the client's configured WireGuard
-peer to establish a new encrypted session, preserving its TUN and routes. This
-is not a guarantee of zero packet loss or uninterrupted application sessions.
-
-`id_mode: stable` reuses one identifier per logical lane with changing sequences.
-`rotate` preserves the legacy identifier pattern. Measure both on the target
-path; a time-varying link can make sequential A/B tests misleading.
-
-Use `run --stats-interval 5s` or send SIGUSR1 to obtain JSON counters without keys.
-See [PROTOCOL.md](PROTOCOL.md), [LAB.md](LAB.md) and [VALIDATION.md](VALIDATION.md).
-
-See [PROTOCOL.md](PROTOCOL.md), [SECURITY.md](SECURITY.md),
-[ROADMAP.md](ROADMAP.md) and the [Russian overview](README.ru.md).
+See [VALIDATION.md](VALIDATION.md), [LAB.md](LAB.md), [PROTOCOL.md](PROTOCOL.md),
+[CHANGELOG.md](CHANGELOG.md), [ROADMAP.md](ROADMAP.md) and [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ## License
 
-MIT. WireGuard-go and other dependencies retain their respective licenses.
-This project has not received an independent security audit.
+MIT. Bundles include third-party notices; dependencies retain their licenses.

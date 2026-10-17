@@ -1,7 +1,8 @@
 # Security model and review status
 
-This is an unaudited experimental project. Do not replace a working VPN or route
-a whole network through it on the strength of the local tests alone.
+Version 0.3.0 is the first regular release. No independent security audit has
+been completed. Laboratory coverage and one reported Android browsing test do
+not establish security, compatibility or availability on every network.
 
 ## Trust boundaries
 
@@ -29,9 +30,10 @@ are never changed by the daemon.
 
 ## Known gaps
 
-- Linux NAT/firewall behavior and echo suppression have isolated lab coverage;
-  other devices and real-path v2 operation remain unvalidated. The supplied nft
-  files are **not applied by the daemon**.
+- Linux NAT/firewall behavior and echo suppression have isolated lab coverage.
+  Initial Android v2 browsing over LTE was confirmed on one Pixel 9 Pro with
+  GrapheneOS; broader device/network behavior remains unvalidated. The supplied
+  nft files are **not applied by the daemon**.
 - A valid carrier MAC is not a stateless source-address cookie. A party holding
   the carrier key can spoof addresses where its network allows spoofing.
 - Server cache replay state is not persistent across restarts; see PROTOCOL.md.

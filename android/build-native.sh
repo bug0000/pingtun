@@ -13,7 +13,7 @@ for abi in arm64-v8a x86_64; do
  esac
  out=$root/android/app/src/main/jniLibs/$abi
  mkdir -p "$out"
- GOOS=android GOARCH="$arch" CGO_ENABLED=1 CC="$toolchain/$compiler" go build -trimpath -buildmode=c-shared \
+ GOOS=android GOARCH="$arch" CGO_ENABLED=1 CC="$toolchain/$compiler" go build -trimpath -buildvcs=false -buildmode=c-shared \
    -ldflags='-s -w -extldflags=-Wl,-z,max-page-size=16384' -o "$out/libpingtun.so" ./mobile/jni
  rm "$out/libpingtun.h"
 done

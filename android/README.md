@@ -1,4 +1,4 @@
-# Android preview
+# Android client — pingtun 0.3.0
 
 Native Android client for pingtun, Android 10/API 29 and newer. APKs contain
 arm64-v8a and x86_64 engines. Google Play Services and root are not required by
@@ -6,14 +6,16 @@ the implementation. Actual ICMP availability depends on the OS, app network
 permission, operator and firewall. Initial browsing over LTE was confirmed on
 one Pixel 9 Pro with GrapheneOS and no root on 2026-10-17; the server also
 recorded authenticated traffic and bidirectional forwarded IPv4 flows. This is
-an experimental client, not a production security claim or broad compatibility
-result. The phone's exact OS build and operator were not recorded.
+one basic browsing result; the regular release label does not imply a security
+audit or broad device compatibility. The phone's exact OS build and operator
+were not recorded.
 
 ## Connect
 
-1. Install a signed APK. CI debug APKs are for testing; their signatures change
-   between clean builds. A release APK must be signed with a retained private
-   signing key for future upgrades. Never publish that key.
+1. Install `pingtun_0.3.0_android.apk` from the GitHub release. It retains the
+   previous app's signing identity (versionCode 2) and can update it in place.
+   Do not uninstall first if you want to keep the imported profile. CI debug
+   APKs are for development and use a different signing identity.
 2. Generate a **separate** mobile profile and server configuration:
 
    ```sh
@@ -41,7 +43,7 @@ result. The phone's exact OS build and operator were not recorded.
    traffic must remain blocked when the service stops. While the service is
    running, the TUN stays established during transport failures and recovery.
 
-The preview carries all IPv4 traffic. It captures and drops IPv6, so IPv6 does
+The client carries all IPv4 traffic. It captures and drops IPv6, so IPv6 does
 not silently bypass the tunnel. IPv6 transport, split tunneling, per-app rules,
 QR import and a Windows client are not implemented.
 

@@ -112,6 +112,7 @@ p=Path(sys.argv[1])
 for role in ('client','server'):
  f=p/'configs'/(role+'.json');c=json.loads(f.read_text());c['lanes']=2;c['window']=8;c['hold_ms']=500
  if sys.argv[2]=='adaptive':c['adaptive']={'id_mode':sys.argv[3],'max_pps':1000,'max_window':128,'idle_ms':500}
+ else:c.pop('adaptive',None);c['mtu']=1000;c['wire_mtu']=1280
  if role=='client':c['socket_mode']=sys.argv[5]
  f.write_text(json.dumps(c)+'\n');f.chmod(0o600)
 size=int(sys.argv[4]);(p/'expected.bin').write_bytes((bytes(range(256))*((size+255)//256))[:size])
@@ -138,10 +139,8 @@ for ns in server client; do
  for attempt in {1..100}; do ip -n "$ns" link show pingtun0 >/dev/null 2>&1 && break; sleep .05; done
  ip -n "$ns" link show pingtun0 >/dev/null
 done
-ip -n server address add 10.203.0.1/30 dev pingtun0
-ip -n client address add 10.203.0.2/30 dev pingtun0
-ip -n server link set pingtun0 up
-ip -n client link set pingtun0 up
+ip netns exec server sh "$root/deploy/link-up.sh" pingtun0 10.203.0.1/30
+ip netns exec client sh "$root/deploy/link-up.sh" pingtun0 10.203.0.2/30
 ip netns exec server python3 "$root/tests/http_fixture.py" --bytes "$payload_size" >"$out/http.log" 2>&1 &
 sleep .2
 echo 'Encrypted TUN: download/upload integrity with NAT, jitter, loss and reordering'
@@ -190,8 +189,7 @@ NFT
  ip netns exec server "$binary" run --config "$out/configs/server.json" >>"$out/tunnel-server.log" 2>&1 &
  server_pid=$!
  for attempt in {1..100}; do ip -n server link show pingtun0 >/dev/null 2>&1 && break; sleep .05; done
- ip -n server address add 10.203.0.1/30 dev pingtun0
- ip -n server link set pingtun0 up
+ ip netns exec server sh "$root/deploy/link-up.sh" pingtun0 10.203.0.1/30
  ip netns exec client curl --noproxy '*' --interface 10.203.0.2 --connect-timeout 15 --max-time 30 -fsS http://10.203.0.1:18089/payload -o "$out/restarted.bin"
  cmp "$out/expected.bin" "$out/restarted.bin"
 fi

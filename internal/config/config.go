@@ -67,7 +67,11 @@ func Load(path string) (Config, error) {
 // deliberately do not include input bytes, field values or WireGuard IPC.
 func Decode(r io.Reader) (Config, error) {
 	var c Config
-	d := json.NewDecoder(io.LimitReader(r, 65537))
+	data, err := io.ReadAll(io.LimitReader(r, 65537))
+	if err != nil || len(data) > 65536 {
+		return c, errors.New("config exceeds 64 KiB or could not be read")
+	}
+	d := json.NewDecoder(strings.NewReader(string(data)))
 	d.DisallowUnknownFields()
 	if e := d.Decode(&c); e != nil {
 		return c, errors.New("invalid JSON config")

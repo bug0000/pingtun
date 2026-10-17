@@ -66,7 +66,7 @@ func (p Profile) Validate() error {
 		return errors.New("mobile requires an adaptive ping-socket client, wildcard listen and MTU >= 1280")
 	}
 	if len(c.AllowedIPs) != 1 || c.AllowedIPs[0] != "0.0.0.0/0" {
-		return errors.New("mobile preview requires full IPv4 routing")
+		return errors.New("mobile client requires full IPv4 routing")
 	}
 	return nil
 }
