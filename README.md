@@ -8,6 +8,10 @@ carrier are tested in memory and in an isolated Linux NAT lab with real TUN/raw
 sockets, loss and reordering. Protocol v2 is an explicit experimental opt-in.
 Measured lab results are not guarantees for a provider or filtering device.
 
+An [Android client preview](android/README.md) is available for Android 10+
+(arm64/x86_64). It uses the system VPN API and ICMP datagram sockets without
+requesting root. Device compatibility and network handoff still need testing.
+
 ## What works
 
 - WireGuard's userspace implementation handles the authenticated key exchange,

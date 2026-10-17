@@ -7,9 +7,11 @@ binary=$(realpath "${1:-$root/bin/pingtun}")
 out=$(realpath -m "${2:-${TMPDIR:-/tmp}/pingtun-lab-$$}")
 test -x "$binary"
 mkdir -m 700 "$out" # Refuse to overwrite an existing run.
-exec unshare -Urnm bash -euo pipefail -s -- "$root" "$binary" "$out" "${PINGTUN_LAB_MODE:-legacy}" "${PINGTUN_LAB_RAW:-1}" "${PINGTUN_LAB_ID_MODE:-stable}" "${PINGTUN_LAB_LOSS:-2%}" "${PINGTUN_LAB_BYTES:-262144}" "${PINGTUN_LAB_SOAK_SECONDS:-0}" <<'LAB'
-root=$1 binary=$2 out=$3 mode=$4 raw=$5 id_mode=$6 loss=$7 payload_size=$8 soak=$9
+exec unshare -Urnm bash -euo pipefail -s -- "$root" "$binary" "$out" "${PINGTUN_LAB_MODE:-legacy}" "${PINGTUN_LAB_RAW:-1}" "${PINGTUN_LAB_ID_MODE:-stable}" "${PINGTUN_LAB_LOSS:-2%}" "${PINGTUN_LAB_BYTES:-262144}" "${PINGTUN_LAB_SOAK_SECONDS:-0}" "${PINGTUN_LAB_SOCKET_MODE:-raw}" <<'LAB'
+root=$1 binary=$2 out=$3 mode=$4 raw=$5 id_mode=$6 loss=$7 payload_size=$8 soak=$9 socket_mode=${10}
 [[ "$mode" == legacy || "$mode" == adaptive ]]
+[[ "$socket_mode" == raw || "$socket_mode" == ping ]]
+if [[ "$socket_mode" == ping ]]; then [[ "$mode" == adaptive && "$id_mode" == stable ]]; fi
 [[ "$id_mode" == stable || "$id_mode" == rotate ]]
 [[ "$payload_size" =~ ^[0-9]+$ && "$payload_size" -ge 256 && "$payload_size" -le 16777216 ]]
 [[ "$soak" =~ ^[0-9]+$ && "$soak" -le 600 ]]
@@ -43,6 +45,7 @@ ip -n server link set s0 up
 ip -n client route add default via 10.200.1.1
 ip -n server route add default via 192.0.2.1
 ip netns exec router sysctl -qw net.ipv4.ip_forward=1
+if [[ "$socket_mode" == ping ]]; then ip netns exec client sysctl -qw "net.ipv4.ping_group_range=0 0"; fi
 ip netns exec router nft -f - <<'NFT'
 table ip lab_nat {
  chain postrouting { type nat hook postrouting priority srcnat; oifname "rs0" masquerade; }
@@ -102,19 +105,34 @@ PY
 fi
 ip netns exec router tc qdisc replace dev rc0 root netem delay 20ms 5ms loss "$loss" reorder 10% 50%
 ip netns exec router tc qdisc replace dev rs0 root netem delay 20ms 5ms loss "$loss" reorder 10% 50%
-python3 - "$out" "$mode" "$id_mode" "$payload_size" <<'PY'
+python3 - "$out" "$mode" "$id_mode" "$payload_size" "$socket_mode" <<'PY'
 import json,sys
 from pathlib import Path
 p=Path(sys.argv[1])
 for role in ('client','server'):
  f=p/'configs'/(role+'.json');c=json.loads(f.read_text());c['lanes']=2;c['window']=8;c['hold_ms']=500
  if sys.argv[2]=='adaptive':c['adaptive']={'id_mode':sys.argv[3],'max_pps':1000,'max_window':128,'idle_ms':500}
+ if role=='client':c['socket_mode']=sys.argv[5]
  f.write_text(json.dumps(c)+'\n');f.chmod(0o600)
 size=int(sys.argv[4]);(p/'expected.bin').write_bytes((bytes(range(256))*((size+255)//256))[:size])
 PY
 ip netns exec server "$binary" run --config "$out/configs/server.json" >"$out/tunnel-server.log" 2>&1 &
 server_pid=$!
-ip netns exec client "$binary" run --config "$out/configs/client.json" >"$out/tunnel-client.log" 2>&1 &
+client_prefix=()
+if [[ "$socket_mode" == ping ]]; then
+ command -v setpriv >/dev/null
+ client_prefix=(setpriv --bounding-set=-net_raw)
+ ip netns exec client "${client_prefix[@]}" python3 - <<'CHECK'
+import socket
+try:
+ s=socket.socket(socket.AF_INET,socket.SOCK_RAW,socket.IPPROTO_ICMP)
+except PermissionError:
+ print('Raw ICMP denied as required; testing datagram ping socket.')
+else:
+ s.close();raise SystemExit('CAP_NET_RAW was not removed')
+CHECK
+fi
+ip netns exec client "${client_prefix[@]}" "$binary" run --config "$out/configs/client.json" >"$out/tunnel-client.log" 2>&1 &
 client_pid=$!
 for ns in server client; do
  for attempt in {1..100}; do ip -n "$ns" link show pingtun0 >/dev/null 2>&1 && break; sleep .05; done

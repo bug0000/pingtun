@@ -58,6 +58,7 @@ func (c Config) Validate() error {
 type Stats struct {
 	Sent, Received, Invalid, Dropped, Expired                                                            atomic.Uint64
 	WireSent, WireReceived, DataSent, ControlSent, Window, PeakOutstanding, RTTUS, PeerRestarts, Limited atomic.Uint64
+	LastReplyUnix                                                                                        atomic.Uint64
 }
 type Endpoint struct{ IP netip.Addr }
 

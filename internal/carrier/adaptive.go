@@ -46,7 +46,7 @@ func (b *Bind) Snapshot() map[string]any {
 	if b.cfg.Adaptive != nil {
 		protocol = "v2"
 	}
-	return map[string]any{"protocol": protocol, "echo_sent": b.Stats.Sent.Load(), "datagrams_received": b.Stats.Received.Load(), "invalid": b.Stats.Invalid.Load(), "dropped": b.Stats.Dropped.Load(), "expired": b.Stats.Expired.Load(), "wire_sent_bytes": b.Stats.WireSent.Load(), "wire_received_bytes": b.Stats.WireReceived.Load(), "data_frames_sent": b.Stats.DataSent.Load(), "control_frames_sent": b.Stats.ControlSent.Load(), "window": b.Stats.Window.Load(), "peak_outstanding": b.Stats.PeakOutstanding.Load(), "rtt_us": b.Stats.RTTUS.Load(), "peer_restarts": b.Stats.PeerRestarts.Load(), "limited": b.Stats.Limited.Load()}
+	return map[string]any{"protocol": protocol, "echo_sent": b.Stats.Sent.Load(), "datagrams_received": b.Stats.Received.Load(), "invalid": b.Stats.Invalid.Load(), "dropped": b.Stats.Dropped.Load(), "expired": b.Stats.Expired.Load(), "wire_sent_bytes": b.Stats.WireSent.Load(), "wire_received_bytes": b.Stats.WireReceived.Load(), "data_frames_sent": b.Stats.DataSent.Load(), "control_frames_sent": b.Stats.ControlSent.Load(), "window": b.Stats.Window.Load(), "peak_outstanding": b.Stats.PeakOutstanding.Load(), "rtt_us": b.Stats.RTTUS.Load(), "peer_restarts": b.Stats.PeerRestarts.Load(), "limited": b.Stats.Limited.Load(), "last_reply_unix": b.Stats.LastReplyUnix.Load()}
 }
 func (b *Bind) readAdaptive(g *generation, p Echo) {
 	if p.Reply == b.cfg.Server || (!b.cfg.Server && p.Addr != b.cfg.Remote) {
@@ -296,6 +296,7 @@ func (b *Bind) adaptiveClient(g *generation, id [16]byte) {
 				continue
 			}
 			epoch = f.Epoch
+			b.Stats.LastReplyUnix.Store(uint64(now.Unix()))
 			delay := time.Duration(f.DelayUS) * time.Microsecond
 			sample := now.Sub(t.sent)
 			if delay < sample {

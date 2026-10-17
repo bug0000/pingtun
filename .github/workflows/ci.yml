@@ -13,7 +13,7 @@ jobs:
         with:
           go-version: '1.27.x'
           cache: true
-      - run: test -z "$(gofmt -l cmd internal)"
+      - run: test -z "$(gofmt -l cmd internal mobile/jni)"
       - run: go vet ./...
       - run: go test -race ./...
       - run: go test ./internal/wire -run '^$' -fuzz '^FuzzDecode$' -fuzztime 10s -parallel 2
@@ -28,7 +28,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [legacy, adaptive]
+        include:
+          - mode: legacy
+            socket: raw
+            id: rotate
+            raw: 1
+          - mode: adaptive
+            socket: raw
+            id: rotate
+            raw: 0
+          - mode: adaptive
+            socket: ping
+            id: stable
+            raw: 0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -41,8 +53,6 @@ jobs:
       - run: CGO_ENABLED=0 go build -trimpath -o bin/pingtun ./cmd/pingtun
       - name: NAT, loss, integrity and recovery
         run: |
-          pingtun_raw=0
-          if [ '${{ matrix.mode }}' = legacy ]; then pingtun_raw=1; fi
           # Namespace root cannot override permissions on runner-owned private
           # checkout ancestors. Stage only lab inputs in root-owned /tmp paths.
           pingtun_stage=/tmp/pingtun-ci-inputs
@@ -51,7 +61,7 @@ jobs:
           sudo install -m 755 tests/netns.sh "$pingtun_stage/tests/netns.sh"
           sudo install -m 644 tests/http_fixture.py "$pingtun_stage/tests/http_fixture.py"
           sudo install -m 644 deploy/*.nft "$pingtun_stage/deploy/"
-          sudo env PINGTUN_LAB_MODE='${{ matrix.mode }}' PINGTUN_LAB_RAW="$pingtun_raw" PINGTUN_LAB_ID_MODE=rotate "$pingtun_stage/tests/netns.sh" "$pingtun_stage/bin/pingtun" /tmp/pingtun-ci-results
+          sudo env PINGTUN_LAB_MODE='${{ matrix.mode }}' PINGTUN_LAB_RAW='${{ matrix.raw }}' PINGTUN_LAB_ID_MODE='${{ matrix.id }}' PINGTUN_LAB_SOCKET_MODE='${{ matrix.socket }}' "$pingtun_stage/tests/netns.sh" "$pingtun_stage/bin/pingtun" /tmp/pingtun-ci-results
           if [ '${{ matrix.mode }}' = adaptive ]; then
             sudo cat /tmp/pingtun-ci-results/adaptive-summary.json
             sudo cat /tmp/pingtun-ci-results/idle.json

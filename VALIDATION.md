@@ -1,4 +1,4 @@
-# Development validation — 2026-10-16
+# Development validation — 2026-10-17
 
 Linux amd64, official Go 1.27.2 toolchain. Protocol v2 is an experimental opt-in;
 these are laboratory observations, not production or censorship-resistance
@@ -53,7 +53,28 @@ did not isolate a stable mode-specific cause, or establish that rotating IDs,
 NAT or a particular filtering system caused the issue. Development measurements
 now use the isolated lab to separate implementation behavior from that path.
 
-## Still required
+## Android preview checks
+
+- Go race tests and vet pass, including the shared engine with real WireGuard,
+  server restart recovery, supplied TUN lifetime and key-free statistics.
+- ICMP datagram adapter tests cover kernel identifier rewriting, bounded
+  sequence tickets, reflection/foreign-source rejection and close cancellation.
+- Full Linux NAT lab passes with `CAP_NET_RAW` removed from the client and raw
+  ICMP socket creation explicitly denied: encrypted download/upload hashes,
+  quiet traffic, total blackout recovery and server restart all pass. The
+  recorded quiet sample was 324 IPv4 wire bytes over 1.2 seconds.
+- JNI libraries build for Android arm64-v8a/x86_64. ELF LOAD segments align to
+  16 KiB. Debug/release APKs and instrumentation APK build; Android lint and
+  release vital checks pass (dependency-version/localization warnings remain).
+- Instrumentation covers unprivileged app socket creation, private profile
+  metadata, Keystore encryption and tamper detection. See the Android workflow
+  result for emulator execution on the published commit.
+
+Pixel 9 Pro with GrapheneOS has not been tested yet. There is no claim of
+working phone TUN routing, protected-socket egress, Wi-Fi/mobile handoff, Doze,
+or lockdown until tested on the device. Current live gateways are unchanged.
+
+## Remaining validation
 
 Longer soaks, fairness under competing traffic, diverse real NAT/firewalls,
 concurrent bidirectional load, MTU/fragmentation tests, state-machine fuzzing,

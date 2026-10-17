@@ -10,7 +10,7 @@ vet:
 	go vet ./...
 
 fmt:
-	gofmt -w cmd internal
+	gofmt -w cmd internal mobile/jni
 
 fuzz:
 	go test ./internal/wire -run '^$$' -fuzz '^FuzzDecode$$' -fuzztime 10s -parallel 2

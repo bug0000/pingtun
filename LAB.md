@@ -60,6 +60,7 @@ filtering device or Internet path. Timing and random impairments vary by run.
 | `PINGTUN_LAB_MODE` | `legacy` | `legacy` or opt-in `adaptive` |
 | `PINGTUN_LAB_RAW` | `1` | Set `0` to skip the raw matrix |
 | `PINGTUN_LAB_ID_MODE` | `stable` | Adaptive ID mode: `stable` or `rotate` |
+| `PINGTUN_LAB_SOCKET_MODE` | `raw` | `ping` tests client datagram ICMP with `CAP_NET_RAW` removed; requires adaptive/stable |
 | `PINGTUN_LAB_LOSS` | `2%` | netem loss per leg during tunnel tests |
 | `PINGTUN_LAB_BYTES` | `262144` | Fixture size, 256 bytes to 16 MiB |
 | `PINGTUN_LAB_SOAK_SECONDS` | `0` | Repeated checksum checks, 0–600 s |
@@ -79,6 +80,19 @@ bytes, `adaptive-summary.json` for final counters and `soak.tsv` for successful
 transfers and client RSS in KiB. Expiry counts include intentional outages;
 they are not clean-path loss measurements. CI runs both protocol modes and
 prints key-free logs on failure without uploading private configs.
+
+The Android transport's Linux equivalent can be checked without raw-socket
+privileges on the client (the lab still needs namespace/TUN administration):
+
+```sh
+PINGTUN_LAB_MODE=adaptive PINGTUN_LAB_RAW=0 PINGTUN_LAB_ID_MODE=stable PINGTUN_LAB_SOCKET_MODE=ping ./tests/netns.sh "$PWD/bin/pingtun" /tmp/pingtun-ping-socket
+```
+
+The script explicitly verifies that raw ICMP creation is denied before starting
+the client. The same encrypted integrity, idle, outage and restart checks run
+through datagram ICMP. Server transport remains raw. This validates Linux
+transport behavior; Android VPN consent, app permissions and network handoff
+need separate device checks.
 
 ## Independent path diagnostics
 

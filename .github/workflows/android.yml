@@ -1,0 +1,56 @@
+name: Android
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.x'
+          cache: true
+      - name: Install pinned build tools
+        shell: bash
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358' 'platform-tools'
+          curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.13-bin.zip --output /tmp/gradle.zip
+          echo '20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78  /tmp/gradle.zip' | sha256sum --check
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo /tmp/gradle-8.13/bin >> "$GITHUB_PATH"
+      - name: Build native engine and APKs
+        run: |
+          android/build-native.sh
+          gradle -p android --no-daemon :app:assembleDebug :app:assembleRelease :app:lintDebug :app:assembleDebugAndroidTest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pingtun-android-preview
+          path: |
+            android/app/build/outputs/apk/**/*.apk
+            android/app/build/reports/lint-results-debug.*
+          if-no-files-found: error
+      - name: Prepare stock Android emulator
+        run: |
+          sdkmanager 'emulator' 'system-images;android-35;default;x86_64'
+          echo no | avdmanager create avd --force --name pingtun-ci --package 'system-images;android-35;default;x86_64'
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd pingtun-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > /tmp/pingtun-emulator.log 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/pingtun-emulator.log
+          exit 1
+      - name: Verify rootless ICMP and encrypted profile storage under app UID
+        run: |
+          adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+          adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          adb shell am instrument -w io.github.bug0000.pingtun.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/pingtun-android-tests.txt
+          grep -Eq '^OK \([0-9]+ tests?\)' /tmp/pingtun-android-tests.txt

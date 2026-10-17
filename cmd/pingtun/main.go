@@ -24,7 +24,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const version = "0.2.0-dev"
+const version = "0.3.0-dev"
 
 func main() {
 	if e := run(os.Args[1:]); e != nil {
@@ -34,7 +34,7 @@ func main() {
 }
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: pingtun init | run | check | probe | probe-server | version (use COMMAND -h for options)")
+		return errors.New("usage: pingtun init | mobile-init | run | check | probe | probe-server | version (use COMMAND -h for options)")
 	}
 	switch args[0] {
 	case "version":
@@ -42,6 +42,16 @@ func run(args []string) error {
 		return nil
 	case "probe", "probe-server":
 		return probeCommand(args[0], args[1:])
+	case "mobile-init":
+		fs := flag.NewFlagSet("mobile-init", flag.ContinueOnError)
+		server := fs.String("server", "", "dedicated server IPv4 address")
+		dir := fs.String("dir", "mobile-configs", "new private directory")
+		name := fs.String("name", "pingtun", "profile name")
+		address := fs.String("address", "10.203.0.2/30", "mobile VPN IPv4 address/prefix")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		return initializeMobile(*server, *dir, *name, *address)
 	case "init":
 		fs := flag.NewFlagSet("init", flag.ContinueOnError)
 		server := fs.String("server", "", "server's public IPv4 address")

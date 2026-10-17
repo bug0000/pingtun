@@ -31,6 +31,7 @@ type Config struct {
 	Window        int                     `json:"window"`
 	HoldMS        int                     `json:"hold_ms"`
 	Adaptive      *carrier.AdaptiveConfig `json:"adaptive,omitempty"`
+	SocketMode    string                  `json:"socket_mode,omitempty"`
 }
 
 func Key(s string) ([32]byte, error) {
@@ -59,9 +60,16 @@ func Load(path string) (Config, error) {
 	if !st.Mode().IsRegular() || st.Mode().Perm()&0077 != 0 {
 		return c, errors.New("config must be a regular file with mode 0600 or stricter")
 	}
-	d := json.NewDecoder(io.LimitReader(f, 65537))
+	return Decode(io.LimitReader(f, 65537))
+}
+
+// Decode accepts private configuration from an already protected source. Errors
+// deliberately do not include input bytes, field values or WireGuard IPC.
+func Decode(r io.Reader) (Config, error) {
+	var c Config
+	d := json.NewDecoder(io.LimitReader(r, 65537))
 	d.DisallowUnknownFields()
-	if e = d.Decode(&c); e != nil {
+	if e := d.Decode(&c); e != nil {
 		return c, errors.New("invalid JSON config")
 	}
 	var extra any
@@ -73,6 +81,12 @@ func Load(path string) (Config, error) {
 func (c Config) Validate() error {
 	if c.Role != "client" && c.Role != "server" {
 		return errors.New("role must be client or server")
+	}
+	if c.SocketMode != "" && c.SocketMode != "raw" && c.SocketMode != "ping" {
+		return errors.New("socket_mode must be raw or ping")
+	}
+	if c.SocketMode == "ping" && (c.Role != "client" || c.Adaptive == nil || c.Adaptive.IDMode != "stable") {
+		return errors.New("ping socket requires an adaptive client with stable identifier mode")
 	}
 	if !regexp.MustCompile(`^[a-zA-Z0-9_-]{1,15}$`).MatchString(c.Interface) {
 		return errors.New("invalid TUN interface name")
@@ -126,6 +140,9 @@ func (c Config) Carrier() (carrier.Config, error) {
 	}
 	cc := carrier.Config{Server: c.Role == "server", Remote: remote, Key: key, Lanes: c.Lanes, Window: c.Window, WireMTU: c.WireMTU, Hold: time.Duration(c.HoldMS) * time.Millisecond, Timeout: time.Duration(c.HoldMS)*time.Millisecond + 2*time.Second}
 	cc.Socket = func() (carrier.EchoSocket, error) { return carrier.Listen(c.Listen) }
+	if c.SocketMode == "ping" {
+		cc.Socket = func() (carrier.EchoSocket, error) { return carrier.ListenPing(remote, nil) }
+	}
 	cc.Adaptive = c.Adaptive
 	return cc, nil
 }
