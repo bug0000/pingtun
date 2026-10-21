@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 import sys
+import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
@@ -33,10 +34,126 @@ LOCK = threading.RLock()
 AUTH_LOCK = threading.RLock()
 FAILURES = {}
 SCRYPT_N = 1 << 14
+TRANSPORT_DEFAULTS = {"mtu": 1280, "wire_mtu": 1440, "lanes": 2, "window": 4,
+                      "hold_ms": 500, "max_pps": 250, "max_window": 32,
+                      "idle_ms": 500, "id_mode": "stable"}
+TRANSPORT_LIMITS = {"mtu": (68, 1408), "wire_mtu": (512, 1500), "lanes": (1, 8),
+                    "window": (1, 16), "hold_ms": (50, 1000), "max_pps": (10, 5000),
+                    "max_window": (4, 128), "idle_ms": (100, 5000)}
+
+
+def validate_transport(value, kind="linux"):
+    if not isinstance(value, dict) or set(value) != set(TRANSPORT_DEFAULTS):
+        raise ValueError("all transport fields are required; unknown fields are rejected")
+    for key, (low, high) in TRANSPORT_LIMITS.items():
+        if type(value[key]) is not int or not low <= value[key] <= high:
+            raise ValueError(f"{key} must be an integer from {low} to {high}")
+    if value["id_mode"] not in ("stable", "rotate"):
+        raise ValueError("id_mode must be stable or rotate")
+    if 32 + ((value["mtu"] + 15) // 16) * 16 > value["wire_mtu"] - 28 - 80:
+        raise ValueError("TUN MTU does not fit the authenticated ICMP carrier")
+    if kind == "android" and (value["mtu"] < 1280 or value["id_mode"] != "stable"):
+        raise ValueError("Android requires MTU >= 1280 and stable identifier mode")
+    return dict(value)
+
+
+def transport_from(config):
+    adaptive = config.get("adaptive")
+    if not isinstance(adaptive, dict):
+        raise ValueError("only adaptive v2 accounts support transport editing")
+    result = {key: config[key] for key in ("mtu", "wire_mtu", "lanes", "window", "hold_ms")}
+    result.update({key: adaptive.get(key, default) for key, default in
+                   (("max_pps", 1000), ("max_window", 128), ("idle_ms", 500), ("id_mode", "rotate"))})
+    return result
+
+
+def apply_transport(config, value):
+    config.update({key: value[key] for key in ("mtu", "wire_mtu", "lanes", "window", "hold_ms")})
+    config["adaptive"] = {key: value[key] for key in ("max_pps", "max_window", "idle_ms", "id_mode")}
+
+
+def replace_private(path, data):
+    path = Path(path)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                     prefix=".update-", delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def transport_defaults():
+    path = ROOT / "transport.json"
+    return validate_transport(json.loads(path.read_text())) if path.exists() else dict(TRANSPORT_DEFAULTS)
+
+
+def save_transport_defaults(value):
+    value = validate_transport(value)
+    with LOCK:
+        replace_private(ROOT / "transport.json", json.dumps(value, indent=2) + "\n")
+    return value
+
+
+def account_transport(identifier):
+    with LOCK:
+        path = account_dir(identifier)
+        metadata = json.loads((path / "account.json").read_text())
+        value = transport_from(json.loads((path / "client.json").read_text()))
+        return validate_transport(value, metadata["kind"])
+
+
+def update_transport(identifier, value):
+    with LOCK:
+        path = account_dir(identifier)
+        metadata = json.loads((path / "account.json").read_text())
+        value = validate_transport(value, metadata["kind"])
+        names = ["server.json", "client.json"]
+        if metadata["kind"] == "android":
+            names.append("profile.pingtun.json")
+        originals = {name: (path / name).read_text() for name in names}
+        configs = {name: json.loads(data) for name, data in originals.items()}
+        for name in ("server.json", "client.json"):
+            transport_from(configs[name])  # Reject unsupported legacy configurations.
+            apply_transport(configs[name], value)
+        if "profile.pingtun.json" in configs:
+            configs["profile.pingtun.json"]["config"] = configs["client.json"]
+        state = service_state(unit(identifier))
+        if state not in ("active", "inactive", "failed"):
+            raise ValueError("service is changing state; retry later")
+        was_active = state == "active"
+        # Validate both private candidates before touching the live files or service.
+        with tempfile.TemporaryDirectory(dir=path) as temporary:
+            for name in ("server.json", "client.json"):
+                candidate = Path(temporary) / name
+                write_private(candidate, json.dumps(configs[name]))
+                command("/usr/local/bin/pingtun", "check", "--config", str(candidate))
+        try:
+            for name, config in configs.items():
+                replace_private(path / name, json.dumps(config, indent=2) + "\n")
+            if was_active:
+                command("systemctl", "restart", unit(identifier))
+                if service_state(unit(identifier)) != "active":
+                    raise RuntimeError("transport restart failed")
+        except BaseException:
+            for name, data in originals.items():
+                replace_private(path / name, data)
+            if was_active:
+                command("systemctl", "restart", unit(identifier))
+            raise
+        return {"transport": value, "profile_required": True, "restarted": was_active}
 
 
 def command(*args):
-    return subprocess.run(args, check=True, text=True, capture_output=True).stdout
+    return subprocess.run(args, check=True, text=True, capture_output=True, timeout=60).stdout
 
 
 def write_private(path, data):
@@ -227,12 +344,14 @@ def route_conflict(network):
 
 
 def validate_name(name):
-    if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name) or not name.strip():
-        raise ValueError("name must contain 1 to 64 printable characters")
+    if (not isinstance(name, str) or not NAME_PATTERN.fullmatch(name) or not name.strip()
+            or len(name.encode("utf-8")) > 64
+            or any(unicodedata.category(c) == "Cc" for c in name)):
+        raise ValueError("name must contain printable characters, at most 64 UTF-8 bytes")
     return name.strip()
 
 
-def create(name, kind, server_ip, external_if):
+def create(name, kind, server_ip, external_if, transport=None):
     name = validate_name(name)
     if kind not in ("android", "linux"):
         raise ValueError("client type must be android or linux")
@@ -242,6 +361,7 @@ def create(name, kind, server_ip, external_if):
     if not re.fullmatch(r"[a-zA-Z0-9_.-]{1,15}", external_if):
         raise ValueError("invalid external interface")
     with LOCK:
+        transport = validate_transport(transport_defaults() if transport is None else transport, kind)
         identifier, number = next_id()
         server_addr, client_addr = addresses(number)
         if route_conflict(ipaddress.ip_network(f"{server_addr}/30", strict=False)):
@@ -259,6 +379,8 @@ def create(name, kind, server_ip, external_if):
             server["interface"] = interface
             server["allowed_ips"] = [f"{client_addr}/32"]
             client["interface"] = interface
+            apply_transport(server, transport)
+            apply_transport(client, transport)
             if kind == "android":
                 client["socket_mode"] = "ping"
             profile = {"version": 1, "name": name, "address": f"{client_addr}/30",
@@ -276,6 +398,10 @@ def create(name, kind, server_ip, external_if):
  chain echo_guard {{
   type filter hook output priority -5; policy accept;
   icmp type echo-reply @th,64,48 0x5054554e0201 drop
+ }}
+ chain input {{
+  type filter hook input priority 0; policy accept;
+  iifname "{interface}" drop
  }}
  chain forward {{
   type filter hook forward priority 0; policy accept;
@@ -298,6 +424,7 @@ def create(name, kind, server_ip, external_if):
             )
             command("/usr/sbin/nft", "-c", "-f", str(path / "network.nft"))
             command("/usr/local/bin/pingtun", "check", "--config", str(path / "server.json"))
+            command("/usr/local/bin/pingtun", "check", "--config", str(path / "client.json"))
             command("systemctl", "daemon-reload")
             command("systemctl", "enable", "--now", unit(identifier))
             return metadata
@@ -459,7 +586,15 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/style.css":
             self.respond(200, (Path(__file__).parent / "style.css").read_bytes(), "text/css; charset=utf-8")
         elif path == "/api/accounts":
-            self.respond(200, json.dumps(list_accounts()).encode())
+            with LOCK:
+                self.respond(200, json.dumps(list_accounts()).encode())
+        elif path == "/api/transport":
+            self.respond(200, json.dumps(transport_defaults()).encode())
+        elif re.fullmatch(r"/api/accounts/a[0-9]{4}/transport", path):
+            try:
+                self.respond(200, json.dumps(account_transport(path.split("/")[3])).encode())
+            except (OSError, ValueError, KeyError):
+                self.respond(404, b'{"error":"adaptive account not found"}')
         elif path == "/api/admin":
             with AUTH_LOCK:
                 self.respond(200, json.dumps({"login": self.server.credentials["login"]}).encode())
@@ -467,9 +602,10 @@ class Handler(BaseHTTPRequestHandler):
             identifier = path.split("/")[3]
             account = account_dir(identifier)
             try:
-                kind = json.loads((account / "account.json").read_text())["kind"]
-                filename = "profile.pingtun.json" if kind == "android" else "client.json"
-                self.respond(200, (account / filename).read_bytes(), "application/json", f"{identifier}-{filename}")
+                with LOCK:
+                    kind = json.loads((account / "account.json").read_text())["kind"]
+                    filename = "profile.pingtun.json" if kind == "android" else "client.json"
+                    self.respond(200, (account / filename).read_bytes(), "application/json", f"{identifier}-{filename}")
             except (OSError, ValueError, KeyError):
                 self.respond(404, b'{"error":"account not found"}')
         else:
@@ -488,10 +624,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             payload = json.loads(self.rfile.read(size))
+            if not isinstance(payload, dict):
+                raise ValueError("request must be a JSON object")
             path = urlsplit(self.path).path
             if path == "/api/accounts":
-                result = create(payload["name"], payload["kind"], self.server.server_ip, self.server.external_if)
+                result = create(payload["name"], payload["kind"], self.server.server_ip, self.server.external_if,
+                                payload.get("transport"))
                 self.respond(201, json.dumps(result).encode())
+            elif path == "/api/transport":
+                self.respond(200, json.dumps(save_transport_defaults(payload)).encode())
+            elif re.fullmatch(r"/api/accounts/a[0-9]{4}/transport", path):
+                result = update_transport(path.split("/")[3], payload)
+                self.respond(200, json.dumps(result).encode())
             elif path == "/api/admin":
                 with AUTH_LOCK:
                     if not verify_credentials(self.server.credentials, self.server.credentials["login"], payload["current_password"]):
@@ -515,7 +659,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(404, b'{"error":"not found"}')
         except (KeyError, ValueError, TypeError, FileNotFoundError) as exc:
             self.respond(400, json.dumps({"error": str(exc)}).encode())
-        except (OSError, subprocess.CalledProcessError):
+        except (OSError, subprocess.SubprocessError, RuntimeError):
             self.respond(500, b'{"error":"server operation failed; check service journal"}')
 
 

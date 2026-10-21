@@ -1,4 +1,4 @@
-# Install pingtun 0.3.0
+# Install pingtun 0.4.0
 
 [Русский](INSTALL.ru.md) · [Android details](android/README.md)
 
@@ -16,8 +16,8 @@ plus SHA256SUMS from the release. Verify **before** installing:
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-tar -xzf pingtun_0.3.0_linux_amd64.tar.gz
-cd pingtun_0.3.0_linux_amd64
+tar -xzf pingtun_0.4.0_linux_amd64.tar.gz
+cd pingtun_0.4.0_linux_amd64
 sudo install -m 755 bin/pingtun /usr/local/bin/pingtun
 sudo install -d -m 755 /usr/local/libexec
 sudo install -m 755 deploy/link-up.sh /usr/local/libexec/pingtun-link-up
@@ -46,7 +46,7 @@ client's private keys or connect two devices with the same profile.
 Keep the generated files private (directories 0700, files 0600). Transfer only
 `server.json` to the server and `client.json` to the Linux client, or
 `profile.pingtun.json` privately to Android. Do not put any of them in a release.
-Existing working configs/profiles do not need regeneration for 0.3.0.
+Existing working configs/profiles do not need regeneration for 0.4.0.
 
 ## 3. Start the server and retain its TUN address across restarts
 

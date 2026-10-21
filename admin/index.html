@@ -9,6 +9,19 @@
 <button type="submit">Создать аккаунт</button></form>
 <p class="hint">Каждому клиенту создаются свои ключи, TUN и адрес. Профиль передавайте только по защищённому каналу.</p></section>
 <p id="message" role="status"></p>
+<section class="panel"><h2>Параметры транспорта</h2>
+<form id="transport-settings"><label>Применить к<select id="transport-target"><option value="defaults">Новым клиентам по умолчанию</option></select></label>
+<label>MTU TUN<input name="mtu" type="number" min="68" max="1408" required></label>
+<label>MTU внешнего пакета<input name="wire_mtu" type="number" min="512" max="1500" required></label>
+<label>Логические каналы<input name="lanes" type="number" min="1" max="8" required></label>
+<label>Начальное окно на канал<input name="window" type="number" min="1" max="16" required></label>
+<label>Hold, мс (база таймаута v2)<input name="hold_ms" type="number" min="50" max="1000" required></label>
+<label>Максимум пакетов/с<input name="max_pps" type="number" min="10" max="5000" required></label>
+<label>Максимальное окно<input name="max_window" type="number" min="4" max="128" required></label>
+<label>Интервал простоя, мс<input name="idle_ms" type="number" min="100" max="5000" required></label>
+<label>ICMP Identifier<select name="id_mode"><option value="stable">Постоянный</option><option value="rotate">Ротация (Linux)</option></select></label>
+<button type="submit" disabled>Сохранить параметры</button></form>
+<p class="hint">Для Android: MTU TUN не менее 1280 и постоянный Identifier. MTU внешнего пакета должен вмещать TUN с шифрованием и заголовками. Изменение клиента перезапускает активный туннель: затем скачайте и заново импортируйте профиль на клиенте. Заблокированный туннель остаётся остановленным. Настройки по умолчанию влияют только на новые аккаунты; ранее настроенные ручные службы редактируются отдельно.</p></section>
 <section class="panel"><div class="row"><h2>Аккаунты</h2><span id="count"></span></div><div id="accounts" class="accounts"></div></section>
 <section class="panel"><h2>Учётная запись администратора</h2><form id="admin-settings">
 <label>Новый логин<input name="login" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]+" required autocomplete="username"></label>
