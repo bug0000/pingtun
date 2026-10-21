@@ -26,6 +26,7 @@ ROOT = Path("/etc/pingtun/admin")
 UNITS = Path("/etc/systemd/system")
 POOL = ipaddress.ip_network("10.253.0.0/16")
 ID_PATTERN = re.compile(r"a[0-9]{4}\Z")
+LEGACY_ID_PATTERN = re.compile(r"legacy-(pingtun(?:-[a-z0-9]+|[0-9]+))\Z")
 NAME_PATTERN = re.compile(r"[^\x00-\x1f\x7f]{1,64}\Z")
 LOGIN_PATTERN = re.compile(r"[A-Za-z0-9_.-]{3,32}\Z")
 LOCK = threading.RLock()
@@ -156,6 +157,41 @@ def unit(identifier):
     return f"pingtun-admin@{identifier}.service"
 
 
+def legacy_unit(identifier):
+    match = LEGACY_ID_PATTERN.fullmatch(identifier)
+    if not match or match.group(1) in {"pingtun-admin", "pingtun-probe", "pingtun-experiment"}:
+        raise ValueError("invalid legacy account ID")
+    return f"{match.group(1)}.service"
+
+
+def legacy_accounts():
+    path = ROOT / "legacy.json"
+    if not path.exists():
+        return []
+    entries = json.loads(path.read_text())
+    if not isinstance(entries, list):
+        raise ValueError("legacy account registry must be a list")
+    accounts = []
+    seen = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("invalid legacy account entry")
+        identifier = entry["id"]
+        legacy_unit(identifier)
+        if identifier in seen:
+            raise ValueError("duplicate legacy account ID")
+        seen.add(identifier)
+        address = ipaddress.ip_interface(entry["client_address"])
+        if address.version != 4 or address.network.prefixlen != 30:
+            raise ValueError("legacy client address must be IPv4 /30")
+        kind = entry["kind"]
+        if kind not in ("android", "linux"):
+            raise ValueError("invalid legacy client type")
+        accounts.append({"id": identifier, "name": validate_name(entry["name"]),
+                         "kind": kind, "client_address": str(address), "source": "legacy"})
+    return accounts
+
+
 def addresses(number):
     if not 1 <= number < 4096:
         raise ValueError("address pool exhausted")
@@ -279,26 +315,34 @@ def create(name, kind, server_ip, external_if):
             raise
 
 
-def service_state(identifier):
-    result = subprocess.run(("systemctl", "is-active", unit(identifier)), text=True, capture_output=True)
+def service_state(service):
+    result = subprocess.run(("systemctl", "is-active", service), text=True, capture_output=True)
     return result.stdout.strip() or "unknown"
 
 
-def latest_stats(identifier, created_unix):
-    result = subprocess.run(("journalctl", "-u", unit(identifier), "-o", "cat", "-n", "200", "--no-pager"),
+def latest_stats(service, created_unix):
+    result = subprocess.run(("journalctl", "-u", service, "-o", "json", "-n", "200", "--no-pager"),
                             text=True, capture_output=True)
     if result.returncode:
         return {}
     for line in reversed(result.stdout.splitlines()):
         try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
+            record = json.loads(line)
+            value = json.loads(record["MESSAGE"])
+            timestamp = int(record["__REALTIME_TIMESTAMP"]) / 1_000_000
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             continue
-        if (isinstance(value, dict) and isinstance(value.get("rx_bytes"), int)
-                and isinstance(value.get("now_unix"), int)
-                and value["now_unix"] >= created_unix):
-            return {key: value[key] for key in ("rx_bytes", "tx_bytes", "last_handshake_time_sec", "now_unix")
-                    if isinstance(value.get(key), int)}
+        if timestamp < created_unix or not isinstance(value, dict):
+            continue
+        if isinstance(value.get("rx_bytes"), int) and isinstance(value.get("tx_bytes"), int):
+            stats = {key: value[key] for key in ("rx_bytes", "tx_bytes", "last_handshake_time_sec")
+                     if isinstance(value.get(key), int)}
+            stats.update(now_unix=int(timestamp), source="payload")
+            return stats
+        if (isinstance(value.get("wire_received_bytes"), int)
+                and isinstance(value.get("wire_sent_bytes"), int)):
+            return {"rx_bytes": value["wire_received_bytes"], "tx_bytes": value["wire_sent_bytes"],
+                    "now_unix": int(timestamp), "source": "wire"}
     return {}
 
 
@@ -310,19 +354,32 @@ def list_accounts():
             identifier = metadata["id"]
             if account_dir(identifier) != path:
                 continue
-            metadata["state"] = service_state(identifier)
-            metadata["stats"] = latest_stats(identifier, metadata["created_unix"])
+            metadata["source"] = "managed"
+            metadata["state"] = service_state(unit(identifier))
+            metadata["stats"] = latest_stats(unit(identifier), metadata["created_unix"])
             results.append(metadata)
         except (OSError, ValueError, KeyError):
             continue
+    for metadata in legacy_accounts():
+        service = legacy_unit(metadata["id"])
+        metadata["state"] = service_state(service)
+        metadata["stats"] = latest_stats(service, 0)
+        results.append(metadata)
     return results
 
 
 def set_blocked(identifier, blocked):
     with LOCK:
-        if not (account_dir(identifier) / "account.json").is_file():
-            raise FileNotFoundError("account not found")
-        command("systemctl", "disable" if blocked else "enable", "--now", unit(identifier))
+        if ID_PATTERN.fullmatch(identifier):
+            if not (account_dir(identifier) / "account.json").is_file():
+                raise FileNotFoundError("account not found")
+            service = unit(identifier)
+        else:
+            service = next((legacy_unit(entry["id"]) for entry in legacy_accounts()
+                            if entry["id"] == identifier), None)
+            if service is None:
+                raise FileNotFoundError("account not found")
+        command("systemctl", "disable" if blocked else "enable", "--now", service)
 
 
 def delete(identifier):
@@ -444,9 +501,12 @@ class Handler(BaseHTTPRequestHandler):
                     save_credentials(credentials)
                     self.server.credentials = credentials
                 self.respond(200, b'{"ok":true}')
-            elif re.fullmatch(r"/api/accounts/a[0-9]{4}/(block|unblock|delete)", path):
+            elif re.fullmatch(r"/api/accounts/(?:a[0-9]{4}|legacy-pingtun(?:-[a-z0-9]+|[0-9]+))/(block|unblock|delete)", path):
                 identifier, action = path.split("/")[3:5]
                 if action == "delete":
+                    if not ID_PATTERN.fullmatch(identifier):
+                        self.respond(403, b'{"error":"legacy accounts cannot be deleted here"}')
+                        return
                     delete(identifier)
                 else:
                     set_blocked(identifier, action == "block")

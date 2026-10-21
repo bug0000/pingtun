@@ -86,17 +86,55 @@ class AccountTests(unittest.TestCase):
             admin.create("Valid", "linux", "10.0.0.1", "ens3")
 
     def test_reused_id_does_not_show_previous_accounts_traffic(self):
-        old = json.dumps({"rx_bytes": 1000, "tx_bytes": 2000, "now_unix": 100})
-        new = json.dumps({"rx_bytes": 20, "tx_bytes": 30, "now_unix": 200})
+        def journal_entry(timestamp, stats):
+            return json.dumps({"__REALTIME_TIMESTAMP": str(timestamp * 1_000_000),
+                               "MESSAGE": json.dumps(stats)})
+
+        old = journal_entry(100, {"rx_bytes": 1000, "tx_bytes": 2000})
+        new = journal_entry(200, {"rx_bytes": 20, "tx_bytes": 30})
         with patch.object(admin.subprocess, "run", return_value=CompletedProcess([], 0, old + "\n")):
-            self.assertEqual(admin.latest_stats("a0001", 150), {})
+            self.assertEqual(admin.latest_stats("pingtun-admin@a0001.service", 150), {})
         with patch.object(admin.subprocess, "run", return_value=CompletedProcess([], 0, old + "\n" + new + "\n")):
-            self.assertEqual(admin.latest_stats("a0001", 150)["rx_bytes"], 20)
+            self.assertEqual(admin.latest_stats("pingtun-admin@a0001.service", 150)["rx_bytes"], 20)
+
+    def test_legacy_wire_stats_are_labeled_separately(self):
+        row = json.dumps({"__REALTIME_TIMESTAMP": "200000000", "MESSAGE":
+                          json.dumps({"wire_received_bytes": 123, "wire_sent_bytes": 456})})
+        with patch.object(admin.subprocess, "run", return_value=CompletedProcess([], 0, row)):
+            stats = admin.latest_stats("pingtun230.service", 0)
+        self.assertEqual(stats["source"], "wire")
+        self.assertEqual((stats["rx_bytes"], stats["tx_bytes"]), (123, 456))
 
     def test_route_on_similarly_named_interface_is_still_a_conflict(self):
         routes = '[{"dst":"10.253.0.4/30","dev":"pta9999"}]'
         with patch.object(admin, "command", return_value=routes):
             self.assertTrue(admin.route_conflict(admin.ipaddress.ip_network("10.253.0.4/30")))
+
+    def test_legacy_account_is_listed_and_can_be_blocked_without_deleting_files(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(admin, "ROOT", Path(temporary)):
+            registry = [{"id": "legacy-pingtun230", "name": "Old link", "kind": "linux",
+                         "client_address": "10.254.234.2/30"}]
+            (Path(temporary) / "legacy.json").write_text(json.dumps(registry))
+            (Path(temporary) / "accounts").mkdir()
+            calls = []
+            with patch.object(admin, "command", side_effect=lambda *args: calls.append(args) or ""), \
+                    patch.object(admin, "service_state", return_value="active"), \
+                    patch.object(admin, "latest_stats", return_value={"rx_bytes": 42}):
+                accounts = admin.list_accounts()
+                self.assertEqual(accounts[0]["source"], "legacy")
+                self.assertEqual(accounts[0]["stats"]["rx_bytes"], 42)
+                admin.set_blocked("legacy-pingtun230", True)
+                self.assertIn(("systemctl", "disable", "--now", "pingtun230.service"), calls)
+                with self.assertRaises(FileNotFoundError):
+                    admin.set_blocked("legacy-pingtun999", True)
+
+    def test_legacy_registry_rejects_admin_service(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(admin, "ROOT", Path(temporary)):
+            registry = [{"id": "legacy-pingtun-admin", "name": "Invalid", "kind": "linux",
+                         "client_address": "10.254.234.2/30"}]
+            (Path(temporary) / "legacy.json").write_text(json.dumps(registry))
+            with self.assertRaises(ValueError):
+                admin.legacy_accounts()
 
 
 if __name__ == "__main__":
