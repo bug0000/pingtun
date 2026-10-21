@@ -68,7 +68,7 @@ public final class MainActivity extends Activity {
         });
         action = centered("Подключить", 16, Ui.TEXT, true); Ui.add(this, body, action, 18);
         LinearLayout metrics = new LinearLayout(this); metrics.setPadding(dp(8), dp(22), dp(8), dp(22)); metrics.setBackground(Ui.shape(this, Ui.CARD, 22));
-        rx = metric(metrics, "Получено, МБ"); tx = metric(metrics, "Отправлено, МБ"); latency = metric(metrics, "Задержка, мс"); Ui.add(this, body, metrics, 34);
+        rx = metric(metrics, "Получено"); tx = metric(metrics, "Отправлено"); latency = metric(metrics, "Задержка"); Ui.add(this, body, metrics, 34);
         LinearLayout card = Ui.column(this); card.setPadding(dp(20), dp(20), dp(20), dp(20)); card.setBackground(Ui.shape(this, Ui.CARD, 22));
         card.addView(Ui.text(this, "ПРОФИЛЬ ПОДКЛЮЧЕНИЯ", 11, Ui.MUTED, true));
         profile = Ui.text(this, "Добавьте профиль", 19, Ui.TEXT, true); Ui.add(this, card, profile, 14);
@@ -147,9 +147,9 @@ public final class MainActivity extends Activity {
         importer.setEnabled(!VpnState.running); importer.setAlpha(VpnState.running ? .45f : 1f);
         try {
             JSONObject s = new JSONObject(VpnState.stats);
-            rx.setText(VpnState.running && s.has("rx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f", s.optLong("rx_bytes") / 1000000.0) : "—");
-            tx.setText(VpnState.running && s.has("tx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f", s.optLong("tx_bytes") / 1000000.0) : "—");
-            latency.setText(VpnState.running && s.optLong("rtt_us") > 0 ? String.format(java.util.Locale.getDefault(), "%.0f", s.optLong("rtt_us") / 1000.0) : "—");
+            rx.setText(VpnState.running && s.has("rx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f МБ", s.optLong("rx_bytes") / 1000000.0) : "—");
+            tx.setText(VpnState.running && s.has("tx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f МБ", s.optLong("tx_bytes") / 1000000.0) : "—");
+            latency.setText(VpnState.running && s.optLong("rtt_us") > 0 ? String.format(java.util.Locale.getDefault(), "%.0f мс", s.optLong("rtt_us") / 1000.0) : "—");
         } catch (Exception ignored) { rx.setText("—"); tx.setText("—"); latency.setText("—"); }
     }
     @Override protected void onResume() { super.onResume(); main.post(refresh); }

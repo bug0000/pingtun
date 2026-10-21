@@ -1,4 +1,1 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#CDF588" android:fillType="evenOdd" android:pathData="M33,30 H55 C69,30 78,38 78,51 C78,64 69,72 55,72 H45 V80 H33 Z M45,42 V60 H55 C62,60 66,57 66,51 C66,45 62,42 55,42 Z" />
-    <path android:fillColor="#CDF588" android:pathData="M70,76 A4,4 0,1 0,78 76 A4,4 0,1 0,70 76 Z" />
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/ic_launcher" android:inset="18dp" />

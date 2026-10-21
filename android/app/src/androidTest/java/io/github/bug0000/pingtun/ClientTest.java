@@ -39,6 +39,7 @@ public final class ClientTest {
         Context context = instrumentation.getTargetContext();
         android.app.Activity activity = instrumentation.startActivitySync(new android.content.Intent(context, AboutActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
         instrumentation.waitForIdleSync();
+        android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
             assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "bug@pizd.ec"));
@@ -57,6 +58,7 @@ public final class ClientTest {
         assertNotNull(context.getPackageManager().getApplicationIcon(context.getPackageName()));
         android.app.Activity activity = instrumentation.startActivitySync(new android.content.Intent(context, MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
         instrumentation.waitForIdleSync();
+        android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
             assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "Импортировать профиль"));

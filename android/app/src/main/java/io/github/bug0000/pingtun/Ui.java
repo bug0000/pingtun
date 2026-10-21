@@ -15,7 +15,7 @@ import android.widget.TextView;
 final class Ui {
     static final int BG = Color.rgb(13, 22, 25), CARD = Color.rgb(24, 36, 40);
     static final int TEXT = Color.rgb(240, 245, 240), MUTED = Color.rgb(163, 183, 179);
-    static final int ACCENT = Color.rgb(205, 245, 136), INK = Color.rgb(22, 43, 29);
+    static final int ACCENT = Color.rgb(119, 215, 255), INK = Color.rgb(14, 37, 49);
     private Ui() { }
     static int dp(Activity a, int n) { return Math.round(a.getResources().getDisplayMetrics().density * n); }
     static GradientDrawable shape(Activity a, int color, int radius) {
