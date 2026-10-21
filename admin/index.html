@@ -10,5 +10,11 @@
 <p class="hint">Каждому клиенту создаются свои ключи, TUN и адрес. Профиль передавайте только по защищённому каналу.</p></section>
 <p id="message" role="status"></p>
 <section class="panel"><div class="row"><h2>Аккаунты</h2><span id="count"></span></div><div id="accounts" class="accounts"></div></section>
-<p class="hint">Счётчики трафика показывают данные с последнего запуска процесса. Админка доступна только через SSH‑туннель.</p>
+<section class="panel"><h2>Учётная запись администратора</h2><form id="admin-settings">
+<label>Новый логин<input name="login" minlength="3" maxlength="32" pattern="[A-Za-z0-9_.-]+" required autocomplete="username"></label>
+<label>Текущий пароль<input name="current_password" type="password" required autocomplete="current-password"></label>
+<label>Новый пароль<input name="password" type="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+<button type="submit">Сменить данные</button></form>
+<p class="hint">После смены браузер запросит новые учётные данные. Пароль хранится на сервере только в виде хеша.</p></section>
+<p class="hint">Счётчики трафика показывают данные с последнего запуска процесса.</p>
 </main><script src="/app.js"></script></body></html>

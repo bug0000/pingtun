@@ -21,7 +21,7 @@ VPN profile or live configuration is included. The Android UI is currently Russi
 - Adaptive v2: short idle controls, a shared packet pacer/window, bounded queues,
   logical lanes, server restart recovery and key-free statistics.
 - One encrypted peer per server instance; independent keys for every client.
-- An optional [local admin console](admin/README.ru.md) provisions and manages
+- An optional [web admin console](admin/README.ru.md) provisions and manages
   separate instances for Android and Linux clients.
 - `init` creates v2 pairs with stable IDs, MTU 1280 / outer MTU 1440, two lanes,
   a 250 packets/s ceiling and a 32-request maximum window. `init --legacy`

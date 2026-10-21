@@ -1,0 +1,24 @@
+# Replace PUBLIC_IPV4 and place inside Nginx's http context.
+limit_req_zone $binary_remote_addr zone=pingtun_admin:1m rate=30r/m;
+limit_conn_zone $binary_remote_addr zone=pingtun_admin_conn:1m;
+
+server {
+    listen PUBLIC_IPV4:9443 ssl;
+    server_name PUBLIC_IPV4;
+    ssl_certificate /etc/letsencrypt/live/PUBLIC_IPV4/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/PUBLIC_IPV4/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    access_log off;
+    client_max_body_size 8k;
+    limit_req zone=pingtun_admin burst=20 nodelay;
+    limit_conn pingtun_admin_conn 5;
+    location / {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_request_buffering on;
+    }
+}

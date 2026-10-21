@@ -3,11 +3,40 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from subprocess import CompletedProcess
 
 import pingtun_admin as admin
 
 
 class AccountTests(unittest.TestCase):
+    def test_admin_credentials_are_salted_and_verifiable(self):
+        one = admin.build_credentials("owner", "long-private-password")
+        two = admin.build_credentials("owner", "long-private-password")
+        self.assertNotEqual(one["hash"], two["hash"])
+        self.assertTrue(admin.verify_credentials(one, "owner", "long-private-password"))
+        self.assertFalse(admin.verify_credentials(one, "owner", "wrong-password"))
+        self.assertFalse(admin.verify_credentials(one, "other", "long-private-password"))
+        self.assertNotIn("long-private-password", json.dumps(one))
+
+    def test_admin_credentials_are_saved_private(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(admin, "ROOT", Path(temporary)):
+            credentials = admin.build_credentials("owner", "long-private-password")
+            admin.save_credentials(credentials)
+            path = Path(temporary) / "credentials.json"
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(admin.load_credentials(), credentials)
+
+    def test_login_throttle_resets_after_success(self):
+        with patch.object(admin, "FAILURES", {}):
+            self.assertFalse(admin.rate_limited("192.0.2.2"))
+            self.assertEqual(admin.FAILURES, {})
+            for _ in range(5):
+                admin.record_failure("192.0.2.1")
+            self.assertTrue(admin.rate_limited("192.0.2.1"))
+            self.assertFalse(admin.rate_limited("192.0.2.2"))
+            admin.clear_failures("192.0.2.1")
+            self.assertFalse(admin.rate_limited("192.0.2.1"))
+
     def test_addresses_are_distinct_and_in_pool(self):
         self.assertEqual(admin.addresses(1), ("10.253.0.5", "10.253.0.6"))
         self.assertEqual(admin.addresses(4095), ("10.253.63.253", "10.253.63.254"))
@@ -55,6 +84,19 @@ class AccountTests(unittest.TestCase):
             admin.validate_name("\n")
         with self.assertRaises(ValueError):
             admin.create("Valid", "linux", "10.0.0.1", "ens3")
+
+    def test_reused_id_does_not_show_previous_accounts_traffic(self):
+        old = json.dumps({"rx_bytes": 1000, "tx_bytes": 2000, "now_unix": 100})
+        new = json.dumps({"rx_bytes": 20, "tx_bytes": 30, "now_unix": 200})
+        with patch.object(admin.subprocess, "run", return_value=CompletedProcess([], 0, old + "\n")):
+            self.assertEqual(admin.latest_stats("a0001", 150), {})
+        with patch.object(admin.subprocess, "run", return_value=CompletedProcess([], 0, old + "\n" + new + "\n")):
+            self.assertEqual(admin.latest_stats("a0001", 150)["rx_bytes"], 20)
+
+    def test_route_on_similarly_named_interface_is_still_a_conflict(self):
+        routes = '[{"dst":"10.253.0.4/30","dev":"pta9999"}]'
+        with patch.object(admin, "command", return_value=routes):
+            self.assertTrue(admin.route_conflict(admin.ipaddress.ip_network("10.253.0.4/30")))
 
 
 if __name__ == "__main__":

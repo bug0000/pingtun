@@ -1,6 +1,6 @@
 # Админка pingtun
 
-Локальная веб‑панель управляет новыми клиентами по схеме «один клиент — один экземпляр pingtun». Она создаёт отдельные ключи, TUN, подсеть /30, systemd‑службу и nftables‑таблицу; показывает состояние и счётчики трафика, блокирует, разблокирует и удаляет клиента. Android получает `profile.pingtun.json`, Linux — `client.json`. Закрытые ключи хранятся только в `/etc/pingtun/admin/accounts` с правами root и скачиваются через SSH‑туннель.
+Веб‑панель управляет новыми клиентами по схеме «один клиент — один экземпляр pingtun». Она создаёт отдельные ключи, TUN, подсеть /30, systemd‑службу и nftables‑таблицу; показывает состояние и счётчики трафика, блокирует, разблокирует и удаляет клиента. Android получает `profile.pingtun.json`, Linux — `client.json`. Закрытые ключи хранятся в `/etc/pingtun/admin/accounts` с правами root и скачиваются только через HTTPS.
 
 Панель **не меняет существующие ручные службы**. Адресный пул по умолчанию — `10.253.0.0/16` (первые 4095 подсетей /30); перед установкой убедитесь, что он не пересекается с маршрутизацией сервера и клиентов. Для новых клиентов нужны IPv4 forwarding и открытый входящий ICMP. Если на сервере есть другие цепочки firewall с `drop`, разрешите в них трафик новых интерфейсов `pta0001` и далее. Правила панели разрешают путь клиента только наружу через указанный внешний интерфейс и ответные пакеты обратно.
 
@@ -13,11 +13,34 @@
    ```ini
    PINGTUN_SERVER_IP=203.0.113.10
    PINGTUN_EXTERNAL_IF=eth0
+   PINGTUN_PUBLIC_ORIGIN=https://admin.example.com
    ```
 
-4. Проверьте `net.ipv4.ip_forward=1`, выполните `systemctl daemon-reload` и `systemctl enable --now pingtun-admin.service`.
-5. На своём компьютере откройте туннель `ssh -L 8787:127.0.0.1:8787 root@SERVER`, затем `http://127.0.0.1:8787`. Пользователь Basic Auth — `admin`, случайный пароль создаётся при первом запуске в `/etc/pingtun/admin/password`. Посмотреть его можно через SSH командой `cat /etc/pingtun/admin/password`.
+4. Задайте исходные учётные данные командой `python3 /usr/local/lib/pingtun-admin/pingtun_admin.py set-credentials --login admin`. Пароль вводится без отображения на экране. Его можно позднее сменить вместе с логином через панель; на диске сохраняются только соль и хеш scrypt в файле `credentials.json` с правами 0600. После смены из командной строки перезапустите службу.
+5. Проверьте `net.ipv4.ip_forward=1`, выполните `systemctl daemon-reload` и `systemctl enable --now pingtun-admin.service`.
+6. Для отдельного домена направьте его A‑запись на сервер и получите сертификат TLS. Если Nginx передаёт HTTP‑01 запросы в `/var/www/html`, выполните `certbot certonly --webroot --webroot-path /var/www/html -d ADMIN_DOMAIN`. Настройте Nginx по образцу [nginx-domain.conf.example](nginx-domain.conf.example): перенаправляйте HTTP на HTTPS и проксируйте HTTPS на `http://127.0.0.1:8787`. Передавайте исходный `Host` и адрес клиента в `X-Real-IP`; разрешайте скачивать профили только через HTTPS. Например, внутри HTTPS `server`:
 
-HTTP‑сервер принимает соединения только с `127.0.0.1`, использует Basic Auth, ограничение Origin для изменений и не записывает запросы в журнал. Не публикуйте порт через reverse proxy или прямой firewall‑доступ.
+   ```nginx
+   location / {
+       proxy_pass http://127.0.0.1:8787;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-Proto https;
+       proxy_request_buffering on;
+   }
+   ```
+
+Приложение принимает соединения только с `127.0.0.1`; в публичный интернет выходит лишь HTTPS‑прокси. Оно проверяет пароль, ограничивает попытки входа, требует точный Origin для изменений и не записывает запросы в журнал. Не открывайте внутренний порт 8787 наружу. Публичный домен в `PINGTUN_PUBLIC_ORIGIN` должен совпадать с адресом в браузере (с учётом порта, если он нестандартный).
+
+### Доступ по публичному IPv4 без DNS
+
+Let's Encrypt выдаёт сертификаты для IP‑адресов на шесть дней. Для этой схемы нужен Certbot 5.4+ и доступный извне HTTP‑01 путь. Если Nginx передаёт запросы к IP на сервер с корнем `/var/www/html`, сертификат можно получить так:
+
+```sh
+certbot certonly --preferred-profile shortlived --webroot \
+  --webroot-path /var/www/html --ip-address PUBLIC_IPV4
+```
+
+Создайте отдельный HTTPS `server` на свободном публичном порту, например `PUBLIC_IPV4:9443`, по образцу [nginx-ip.conf.example](nginx-ip.conf.example). В `PINGTUN_PUBLIC_ORIGIN` укажите `https://PUBLIC_IPV4:9443`. Проверьте `certbot renew --dry-run`, включите таймер Certbot и установите [certbot-reload-nginx.sh](certbot-reload-nginx.sh) как deploy hook. IP‑сертификат должен продлеваться чаще обычного доменного сертификата.
 
 Счётчики `rx_bytes` и `tx_bytes` берутся из последнего JSON‑снимка службы (`--stats-interval 30s`) и обнуляются при её перезапуске. Удаление аккаунта останавливает службу и удаляет хранящиеся на сервере ключи и профиль; ранее переданный клиенту профиль после этого не подключится. Если клиентский профиль утерян, удалите аккаунт и создайте новый с новой парой ключей.

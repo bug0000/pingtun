@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=/etc/pingtun/admin/server.env
-ExecStart=/usr/bin/python3 /usr/local/lib/pingtun-admin/pingtun_admin.py --server-ip ${PINGTUN_SERVER_IP} --external-if ${PINGTUN_EXTERNAL_IF}
+ExecStart=/usr/bin/python3 /usr/local/lib/pingtun-admin/pingtun_admin.py --server-ip ${PINGTUN_SERVER_IP} --external-if ${PINGTUN_EXTERNAL_IF} --public-origin ${PINGTUN_PUBLIC_ORIGIN}
 Restart=on-failure
 RestartSec=5
 UMask=0077

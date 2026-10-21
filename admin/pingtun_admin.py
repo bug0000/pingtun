@@ -3,6 +3,8 @@
 
 import argparse
 import base64
+import getpass
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -15,6 +17,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
@@ -24,7 +27,11 @@ UNITS = Path("/etc/systemd/system")
 POOL = ipaddress.ip_network("10.253.0.0/16")
 ID_PATTERN = re.compile(r"a[0-9]{4}\Z")
 NAME_PATTERN = re.compile(r"[^\x00-\x1f\x7f]{1,64}\Z")
+LOGIN_PATTERN = re.compile(r"[A-Za-z0-9_.-]{3,32}\Z")
 LOCK = threading.RLock()
+AUTH_LOCK = threading.RLock()
+FAILURES = {}
+SCRYPT_N = 1 << 14
 
 
 def command(*args):
@@ -42,6 +49,100 @@ def write_private(path, data):
     except BaseException:
         path.unlink(missing_ok=True)
         raise
+
+
+def validate_login(login):
+    if not isinstance(login, str) or not LOGIN_PATTERN.fullmatch(login):
+        raise ValueError("login must be 3 to 32 Latin letters, digits, dots, dashes or underscores")
+    return login
+
+
+def validate_password(password):
+    if not isinstance(password, str) or not 12 <= len(password) <= 128 or any(ord(c) < 32 or ord(c) == 127 for c in password):
+        raise ValueError("password must contain 12 to 128 printable characters")
+    return password
+
+
+def password_hash(password, salt):
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=SCRYPT_N, r=8, p=1,
+                          dklen=32, maxmem=64 * 1024 * 1024)
+
+
+def build_credentials(login, password):
+    validate_login(login)
+    validate_password(password)
+    salt = secrets.token_bytes(32)
+    return {"login": login, "salt": base64.b64encode(salt).decode(),
+            "hash": base64.b64encode(password_hash(password, salt)).decode()}
+
+
+def verify_credentials(credentials, login, password):
+    try:
+        salt = base64.b64decode(credentials["salt"], validate=True)
+        expected = base64.b64decode(credentials["hash"], validate=True)
+        actual = password_hash(password, salt)
+        return hmac.compare_digest(login, credentials["login"]) and hmac.compare_digest(actual, expected)
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
+def save_credentials(credentials):
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=ROOT, prefix=".credentials-",
+                                     delete=False) as stream:
+        temporary = Path(stream.name)
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(credentials, stream)
+        stream.write("\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        os.replace(temporary, ROOT / "credentials.json")
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def load_credentials():
+    path = ROOT / "credentials.json"
+    if not path.exists():
+        legacy = ROOT / "password"
+        if not legacy.exists():
+            raise RuntimeError("set administrator credentials before starting the service")
+        save_credentials(build_credentials("admin", legacy.read_text().strip()))
+        legacy.unlink()
+    return json.loads(path.read_text())
+
+
+def failure_key(handler):
+    # Only the loopback reverse proxy can reach the HTTP listener.
+    return handler.headers.get("X-Real-IP", "") or handler.client_address[0]
+
+
+def rate_limited(key):
+    with AUTH_LOCK:
+        now = time.monotonic()
+        recent = [t for t in FAILURES.get(key, []) if now - t < 600]
+        if recent:
+            FAILURES[key] = recent
+        else:
+            FAILURES.pop(key, None)
+        return len(recent) >= 5
+
+
+def record_failure(key):
+    with AUTH_LOCK:
+        now = time.monotonic()
+        if len(FAILURES) >= 4096 and key not in FAILURES:
+            for address, attempts in list(FAILURES.items()):
+                if now - attempts[-1] >= 600:
+                    del FAILURES[address]
+            if len(FAILURES) >= 4096:
+                FAILURES.pop(next(iter(FAILURES)))
+        FAILURES.setdefault(key, []).append(now)
+
+
+def clear_failures(key):
+    with AUTH_LOCK:
+        FAILURES.pop(key, None)
 
 
 def account_dir(identifier):
@@ -78,7 +179,7 @@ def route_conflict(network):
         raise ValueError("cannot inspect IPv4 routes")
     for route in routes:
         destination = route.get("dst", "default")
-        if destination == "default" or route.get("dev", "").startswith("pta"):
+        if destination == "default":
             continue
         try:
             prefix = ipaddress.ip_network(destination, strict=False)
@@ -183,7 +284,7 @@ def service_state(identifier):
     return result.stdout.strip() or "unknown"
 
 
-def latest_stats(identifier):
+def latest_stats(identifier, created_unix):
     result = subprocess.run(("journalctl", "-u", unit(identifier), "-o", "cat", "-n", "200", "--no-pager"),
                             text=True, capture_output=True)
     if result.returncode:
@@ -193,7 +294,9 @@ def latest_stats(identifier):
             value = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(value, dict) and isinstance(value.get("rx_bytes"), int):
+        if (isinstance(value, dict) and isinstance(value.get("rx_bytes"), int)
+                and isinstance(value.get("now_unix"), int)
+                and value["now_unix"] >= created_unix):
             return {key: value[key] for key in ("rx_bytes", "tx_bytes", "last_handshake_time_sec", "now_unix")
                     if isinstance(value.get(key), int)}
     return {}
@@ -208,7 +311,7 @@ def list_accounts():
             if account_dir(identifier) != path:
                 continue
             metadata["state"] = service_state(identifier)
-            metadata["stats"] = latest_stats(identifier)
+            metadata["stats"] = latest_stats(identifier, metadata["created_unix"])
             results.append(metadata)
         except (OSError, ValueError, KeyError):
             continue
@@ -216,17 +319,17 @@ def list_accounts():
 
 
 def set_blocked(identifier, blocked):
-    if not (account_dir(identifier) / "account.json").is_file():
-        raise FileNotFoundError("account not found")
     with LOCK:
+        if not (account_dir(identifier) / "account.json").is_file():
+            raise FileNotFoundError("account not found")
         command("systemctl", "disable" if blocked else "enable", "--now", unit(identifier))
 
 
 def delete(identifier):
     path = account_dir(identifier)
-    if not (path / "account.json").is_file():
-        raise FileNotFoundError("account not found")
     with LOCK:
+        if not (path / "account.json").is_file():
+            raise FileNotFoundError("account not found")
         command("systemctl", "disable", "--now", unit(identifier))
         shutil.rmtree(path)
         shutil.rmtree(UNITS / f"pingtun-admin@{identifier}.service.d")
@@ -255,29 +358,35 @@ class Handler(BaseHTTPRequestHandler):
 
     def authenticated(self):
         header = self.headers.get("Authorization", "")
-        if not header.startswith("Basic "):
+        if len(header) > 512 or not header.startswith("Basic "):
             return False
         try:
             decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
             user, password = decoded.split(":", 1)
         except (ValueError, UnicodeError):
             return False
-        return hmac.compare_digest(user, "admin") and hmac.compare_digest(password, self.server.password)
+        with AUTH_LOCK:
+            return verify_credentials(self.server.credentials, user, password)
 
     def guard(self, mutation=False):
+        key = failure_key(self)
+        if rate_limited(key):
+            self.respond(429, b'{"error":"too many login attempts; try again later"}')
+            return False
         if not self.authenticated():
+            record_failure(key)
             self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Basic realm="pingtun admin"')
+            self.send_header("WWW-Authenticate", 'Basic realm="pingtun admin", charset="UTF-8"')
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", "0")
             self.end_headers()
             return False
+        clear_failures(key)
         if mutation:
             origin = self.headers.get("Origin", "")
-            host = self.headers.get("Host", "")
             if (self.headers.get("X-Pingtun-Admin") != "1" or
                     self.headers.get("Content-Type", "").split(";", 1)[0] != "application/json" or
-                    origin != f"http://{host}"):
+                    origin != self.server.public_origin):
                 self.respond(403, b'{"error":"request rejected"}')
                 return False
         return True
@@ -294,6 +403,9 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, (Path(__file__).parent / "style.css").read_bytes(), "text/css; charset=utf-8")
         elif path == "/api/accounts":
             self.respond(200, json.dumps(list_accounts()).encode())
+        elif path == "/api/admin":
+            with AUTH_LOCK:
+                self.respond(200, json.dumps({"login": self.server.credentials["login"]}).encode())
         elif re.fullmatch(r"/api/accounts/a[0-9]{4}/download", path):
             identifier = path.split("/")[3]
             account = account_dir(identifier)
@@ -323,6 +435,15 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/accounts":
                 result = create(payload["name"], payload["kind"], self.server.server_ip, self.server.external_if)
                 self.respond(201, json.dumps(result).encode())
+            elif path == "/api/admin":
+                with AUTH_LOCK:
+                    if not verify_credentials(self.server.credentials, self.server.credentials["login"], payload["current_password"]):
+                        self.respond(403, b'{"error":"current password is incorrect"}')
+                        return
+                    credentials = build_credentials(payload["login"], payload["password"])
+                    save_credentials(credentials)
+                    self.server.credentials = credentials
+                self.respond(200, b'{"ok":true}')
             elif re.fullmatch(r"/api/accounts/a[0-9]{4}/(block|unblock|delete)", path):
                 identifier, action = path.split("/")[3:5]
                 if action == "delete":
@@ -339,10 +460,24 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "set-credentials":
+        setup = argparse.ArgumentParser()
+        setup.add_argument("--login", required=True)
+        options = setup.parse_args(sys.argv[2:])
+        password = getpass.getpass("New administrator password: ")
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            setup.error("passwords do not match")
+        ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+        save_credentials(build_credentials(options.login, password))
+        (ROOT / "password").unlink(missing_ok=True)
+        print("Administrator credentials updated. Restart pingtun-admin.service if it is running.")
+        return
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-ip", required=True)
     parser.add_argument("--external-if", required=True)
     parser.add_argument("--listen", default="127.0.0.1:8787")
+    parser.add_argument("--public-origin", default="http://127.0.0.1:8787")
     args = parser.parse_args()
     if not args.listen.startswith("127.0.0.1:"):
         parser.error("admin console must listen on 127.0.0.1")
@@ -353,17 +488,15 @@ def main():
         parser.error("invalid external interface")
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     (ROOT / "accounts").mkdir(mode=0o700, exist_ok=True)
-    password_path = ROOT / "password"
-    if not password_path.exists():
-        write_private(password_path, secrets.token_urlsafe(32) + "\n")
-    password = password_path.read_text().strip()
-    if len(password) < 32:
-        parser.error("admin password must contain at least 32 characters")
+    if not args.public_origin.startswith(("https://", "http://127.0.0.1:")):
+        parser.error("public origin must use HTTPS")
+    credentials = load_credentials()
     host, port = args.listen.rsplit(":", 1)
     server = ThreadingHTTPServer((host, int(port)), Handler)
-    server.password = password
+    server.credentials = credentials
     server.server_ip = args.server_ip
     server.external_if = args.external_if
+    server.public_origin = args.public_origin
     server.serve_forever()
 
 
