@@ -1,5 +1,18 @@
 # Changelog / История изменений
 
+## 0.4.1 — 2026-10-21
+
+- Redesigned native Android UI: dark palette, large connection control, compact
+  profile and traffic cards, separate connection settings and About screen.
+- New adaptive launcher icon, themed monochrome icon and notification mark.
+- About includes a short ICMP/WireGuard description, version, source and
+  contact address bug@pizd.ec. No device-specific or experimental UI labels.
+- Android versionCode 3 retains the release certificate for in-place updates.
+- Added emulator checks for main/About screens and UI screenshots.
+
+Обновлён Android-клиент: чистый интерфейс, иконка, «О приложении» и контакт.
+Обновление сохраняет подпись и импортированный профиль.
+
 ## 0.4.0 — 2026-10-21
 
 - HTTPS admin console: isolated client accounts, profile downloads, block/unblock,

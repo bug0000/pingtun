@@ -1,6 +1,11 @@
 <resources>
-    <style name="Theme.Pingtun" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+    <style name="Theme.Pingtun" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#CDF588</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">#0D1619</item>
+        <item name="android:navigationBarColor">#0D1619</item>
+        <item name="android:windowBackground">#0D1619</item>
     </style>
 </resources>

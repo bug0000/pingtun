@@ -108,7 +108,7 @@ public final class TunnelService extends VpnService {
         String error = NativeEngine.start(tunnel.getFd(), profile, this);
         engineActive = error == null;
         if (!engineActive) state("Нет соединения", "Трафик приостановлен. Проверьте разрешение «Сеть» и доступность ICMP.");
-        else state("Подключение…", "Ожидаем защищённое соединение с сервером");
+        else state("Подключение…", "Устанавливаем защищённое соединение");
     }
     private void reconnect() {
         if (!desired || tunnel == null) return;
@@ -127,7 +127,7 @@ public final class TunnelService extends VpnService {
             long reply = stats.optLong("last_reply_unix");
             long now = stats.optLong("now_unix");
             if (stats.optLong("last_handshake_time_sec") > 0 && reply > 0 && now - reply <= 10)
-                state("Подключено", "IPv4 через pingtun · IPv6 заблокирован");
+                state("Подключено", "Защищённое соединение активно");
             else state("Ожидание сервера", "Трафик приостановлен до установления защищённой связи");
         } catch (Exception | LinkageError e) { state("Нет соединения", "Трафик приостановлен. Можно отключить VPN и подключиться снова."); }
     }

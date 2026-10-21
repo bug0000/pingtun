@@ -1,8 +1,8 @@
 # pingtun
 
-[English](README.md) · [Установка](INSTALL.ru.md) · [Релиз 0.4.0](https://github.com/bug0000/pingtun/releases/tag/v0.4.0)
+[English](README.md) · [Установка](INSTALL.ru.md) · [Релиз 0.4.1](https://github.com/bug0000/pingtun/releases/tag/v0.4.1)
 
-**pingtun 0.4.0** — шифрованный IPv4 VPN поверх ICMP Echo Request/Reply.
+**pingtun 0.4.1** — шифрованный IPv4 VPN поверх ICMP Echo Request/Reply.
 Один Linux-бинарник работает сервером или консольным клиентом. Android-клиент
 использует системный VPN и ICMP datagram sockets, без root и Google Play
 Services. Обмен ключами, шифрование и защиту от повторов обеспечивает
@@ -10,10 +10,10 @@ WireGuard-go. Собственный транспорт написан на Go; 
 
 ## Скачать
 
-В [GitHub Release](https://github.com/bug0000/pingtun/releases/tag/v0.4.0) доступны
+В [GitHub Release](https://github.com/bug0000/pingtun/releases/tag/v0.4.1) доступны
 архивы Linux amd64/arm64, подписанный APK для Android 10+, SHA256SUMS и лицензии.
-Android APK остаётся версией 0.3.0 (versionCode 2): код приложения и его
-подпись не менялись. Этот выпуск обновляет Linux и добавляет админку. Закрытый ключ подписи,
+Android 0.4.1 (versionCode 3): новый интерфейс, адаптивная иконка и раздел
+«О приложении». Подпись сохранена — APK устанавливается поверх прошлой версии. Закрытый ключ подписи,
 VPN-профили и рабочие конфигурации не публикуются. Интерфейс Android пока русский.
 
 ## Возможности и границы
@@ -70,7 +70,7 @@ CI включает fuzzing декодеров, проверку зависим�
 обрывом связи и перезапуском сервера. Datagram-клиент испытывается без
 CAP_NET_RAW. Android проверяется в эмуляторе Android 15: запуск, ICMP от UID
 приложения и защищённое хранение профиля. Пользователь подтвердил первое
-подключение и открытие сайтов через LTE на Pixel 9 Pro / GrapheneOS без root.
+подключение и открытие сайтов через LTE на физическом Android-устройстве без root.
 Это один телефон и одна сеть; сон, смена сети, IPv6 bypass, системная блокировка
 без VPN и длительная работа на телефоне ещё требуют проверки.
 

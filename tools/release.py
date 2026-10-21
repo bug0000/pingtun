@@ -49,6 +49,7 @@ def manifest():
     m = json.loads((ROOT / 'release-artifacts.json').read_text())
     assert m['version'] == VERSION
     assert re.fullmatch(r'\d+\.\d+\.\d+', m['android_version'])
+    assert type(m['android_version_code']) is int and m['android_version_code'] > 0
     assert re.fullmatch('[0-9a-f]{40}', m['android_source_sha'])
     for key in ['android_sha256', 'android_certificate_sha256', 'android_gzip_sha256']:
         assert re.fullmatch('[0-9a-f]{64}', m[key])
@@ -132,7 +133,7 @@ def verify_apk(out):
     assert expected in result
     subprocess.run([str(sdk / 'zipalign'), '-c', '-P', '16', '4', str(apk)], check=True)
     info = subprocess.check_output([str(sdk / 'aapt'), 'dump', 'badging', str(apk)], text=True)
-    assert "name='io.github.bug0000.pingtun'" in info and "versionCode='2'" in info
+    assert "name='io.github.bug0000.pingtun'" in info and ("versionCode='" + str(manifest()['android_version_code']) + "'") in info
     assert "versionName='" + manifest()['android_version'] + "'" in info and 'application-debuggable' not in info
     assert "sdkVersion:'29'" in info and "native-code: 'arm64-v8a' 'x86_64'" in info
     print('Public APK verified: version, certificate, non-debuggable, ABIs and 16 KiB alignment')

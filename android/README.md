@@ -1,19 +1,15 @@
-# Android client — pingtun 0.3.0
+# Android client — pingtun 0.4.1
 
-Native Android client for pingtun, Android 10/API 29 and newer. APKs contain
-arm64-v8a and x86_64 engines. Google Play Services and root are not required by
-the implementation. Actual ICMP availability depends on the OS, app network
-permission, operator and firewall. Initial browsing over LTE was confirmed on
-one Pixel 9 Pro with GrapheneOS and no root on 2026-10-17; the server also
-recorded authenticated traffic and bidirectional forwarded IPv4 flows. This is
-one basic browsing result; the regular release label does not imply a security
-audit or broad device compatibility. The phone's exact OS build and operator
-were not recorded.
+Native Android client for pingtun, Android 10/API 29 and newer, with a clean
+connection screen, adaptive/themed launcher icon and a separate About screen.
+The About screen explains the ICMP tunnel and links to bug@pizd.ec and the
+source repository. APKs contain arm64-v8a and x86_64 engines and need neither
+root nor Google Play Services. ICMP availability depends on network policy.
 
 ## Connect
 
-1. Install `pingtun_0.3.0_android.apk` from the GitHub release. It retains the
-   previous app's signing identity (versionCode 2) and can update it in place.
+1. Install `pingtun_0.4.1_android.apk` from the GitHub release. It retains the
+   previous app's signing identity (versionCode 3) and can update it in place.
    Do not uninstall first if you want to keep the imported profile. CI debug
    APKs are for development and use a different signing identity.
 2. Generate a **separate** mobile profile and server configuration:
@@ -35,8 +31,7 @@ were not recorded.
    examples. Generation does not change routes or deploy a server. The current
    server supports one configured encrypted peer per instance.
 4. Transfer `profile.pingtun.json` privately to the phone. Import it from the
-   app, allow VPN access and notifications, and connect. On GrapheneOS keep
-   the app's **Network** permission enabled. Delete the transferred plaintext
+   app, allow VPN access and notifications, and connect. If your OS provides a separate app network permission, keep it enabled. Delete the transferred plaintext
    file when it is no longer needed. Import encrypts a copy using Android
    Keystore AES-GCM and excludes it from backups.
 5. Enable Android's **Always-on VPN** and **Block connections without VPN** if
@@ -49,7 +44,7 @@ QR import and a Windows client are not implemented.
 
 The optional screen-off connection mode holds a partial wake lock while VPN is
 active and uses more battery. It defaults to off; enable it before connecting
-for experiments that need regular ICMP polls while the phone sleeps. Real
+when you need regular traffic while the phone sleeps. Real
 Doze behavior, long sessions and Wi-Fi/mobile handoff require device testing.
 
 ## Architecture
