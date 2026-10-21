@@ -1,5 +1,20 @@
 # Changelog / История изменений
 
+## 0.4.0 — 2026-10-21
+
+- HTTPS admin console: isolated client accounts, profile downloads, block/unblock,
+  credential rotation, legacy service visibility and separate payload/wire counters.
+- Adaptive transport defaults and managed-account settings, validated for both
+  peers; update Android profiles, restart active services and roll back on errors.
+- Reject names beyond Android's 64-byte UTF-8 profile bound.
+- Include the admin console and systemd templates in Linux release archives.
+- Carry forward signed Android 0.3.0 unchanged; verify native/app source identity
+  before publishing. APK filename and embedded version remain 0.3.0.
+
+Админка HTTPS, управление клиентами и параметрами адаптивного транспорта.
+При изменении параметров клиента требуется скачать и импортировать профиль заново.
+Подписанный Android APK остаётся версией 0.3.0; Linux обновлён до 0.4.0.
+
 ## 0.3.0 — 2026-10-17
 
 First regular release / Первый обычный релиз.

@@ -1,78 +1,58 @@
-# pingtun 0.3.0 — Linux server/client + Android / сервер и клиенты
+# pingtun 0.4.0 — админка и настройки транспорта / admin console
 
 ## Русский
 
-Первый релиз без отметки prerelease: шифрованный IPv4 VPN поверх ICMP.
-WireGuard отвечает за обмен ключами и шифрование; собственный транспорт
-передаёт пакеты через ICMP Echo Request/Reply. Код Hans не используется.
+Linux-сервер и клиент обновлены до 0.4.0. В Linux-архивы добавлен каталог `admin`
+с HTTPS-панелью, шаблонами systemd/Nginx и инструкцией `admin/README.ru.md`.
 
-**Скачать:**
+- Создание отдельных аккаунтов Android/Linux: ключи, TUN, /30, служба, nftables.
+- Скачивание профилей, блокировка, разблокировка, удаление и смена пароля панели.
+- Просмотр ранее настроенных служб через `legacy.json`; их удаление недоступно.
+- Настройки адаптивного транспорта по умолчанию и для аккаунтов панели:
+  MTU TUN/внешнего пакета, каналы, окна, тайминги, пакеты/с и ICMP Identifier.
+- Проверка конфигураций обоих узлов, обновление Android-профиля и возврат старых
+  файлов при ошибке применения. Активный туннель перезапускается.
 
-- `pingtun_0.3.0_linux_amd64.tar.gz` — сервер и консольный клиент Linux x86-64.
-- `pingtun_0.3.0_linux_arm64.tar.gz` — сервер и клиент Linux ARM64.
-- `pingtun_0.3.0_android.apk` — подписанное приложение Android 10+, ARM64/x86_64.
-- `SHA256SUMS` — контрольные суммы всех файлов; APK подписан тем же ключом,
-  что и предыдущая сборка приложения, и устанавливается поверх неё.
-- `ANDROID_SIGNING_CERT.txt` и `THIRD_PARTY_NOTICES.txt` — отпечаток сертификата
-  и уведомления о лицензиях. Закрытый ключ подписи и VPN-профили не публикуются.
+После изменения транспорта скачайте и импортируйте профиль на клиенте заново.
+До этого связь может прерваться. Старые ручные службы автоматически не меняются.
+Панель устанавливается отдельно и требует root, systemd, nftables, forwarding
+и HTTPS reverse proxy; пароли задаются локально и хранятся как scrypt-хеш.
+Счётчики сбрасываются при перезапуске процесса; wire включает служебный трафик.
 
-Linux использует один бинарник с режимами сервера/клиента. Новые конфиги
-создаются через `pingtun init`, отдельный профиль телефона — `pingtun mobile-init`.
-Новые пары используют адаптивный v2; существующие конфиги/профили совместимы.
-Для v1 оставлена команда `init --legacy`. Android работает без root и Google
-Play Services; его интерфейс пока на русском языке.
+**Скачать:** `pingtun_0.4.0_linux_amd64.tar.gz` или
+`pingtun_0.4.0_linux_arm64.tar.gz`; `pingtun_0.3.0_android.apk` — прежний
+подписанный Android-клиент без изменений, versionCode 2. Переустанавливать его
+для использования админки не требуется. Все файлы перечислены в `SHA256SUMS`.
+Проверка релиза сверяет исходники Android и общего ядра с исходным выпуском APK.
 
-Проверено: Go race/vet/fuzz, настоящий WireGuard, Linux NAT с потерями и
-перестановкой, целостность файлов, восстановление после обрыва и перезапуска
-сервера, ICMP-клиент без CAP_NET_RAW; Android-эмулятор проверяет запуск,
-ICMP от UID приложения и зашифрованное хранение профиля. Пользователь подтвердил
-соединение и открытие сайтов через LTE на Pixel 9 Pro с GrapheneOS без root.
-Linux ARM64 поставляется отдельной сборкой; это не заявление о проверке на
-каждой ARM-плате. Подробности и границы испытаний — в VALIDATION.md.
-
-Ограничения: только IPv4, один клиент на экземпляр сервера, Linux-маршруты/NAT
-настраиваются отдельно. Android перехватывает и блокирует IPv6. Физической
-агрегации, FEC и Windows-клиента нет. Длительный сон, смена сетей, IPv6 bypass
-и системная блокировка на реальном телефоне ещё требуют проверки. Внешний
-аудит безопасности не проводился. ICMP может блокироваться или ограничиваться.
-
-Инструкции: [русская](https://github.com/bug0000/pingtun/blob/v0.3.0/INSTALL.ru.md),
-[English](https://github.com/bug0000/pingtun/blob/v0.3.0/INSTALL.md).
+Ограничения: IPv4, один клиент на экземпляр сервера; панель создаёт отдельный
+экземпляр на аккаунт. FEC, физической агрегации и Windows-клиента нет.
+Сон/смена сетей и lockdown на реальном Android требуют дальнейших испытаний.
+Сохранение нескольких файлов с откатом не защищает от отключения питания
+посреди обновления: при таком сбое проверьте согласованность конфигураций.
 
 ## English
 
-First non-prerelease: an encrypted IPv4 VPN over ICMP. WireGuard handles peer
-identity, key exchange and encryption; the custom carrier uses Echo
-Request/Reply. No Hans code is included.
+Linux server/client version 0.4.0 adds an optional HTTPS admin console bundled
+in both Linux archives. See `admin/README.ru.md` for systemd/Nginx installation.
 
-**Downloads:**
+Create isolated Android/Linux accounts, download private profiles, block/unblock
+or delete accounts, rotate admin credentials, and view registered legacy services.
+Edit adaptive transport defaults or managed-account MTUs, lanes, windows, timing,
+packet-rate limits and ICMP identifier mode. Both peer configs are checked before
+application. Android profiles are kept in sync; active services restart and files
+are restored on application failure. Stopped accounts remain stopped.
 
-- `pingtun_0.3.0_linux_amd64.tar.gz` — Linux x86-64 server and CLI client.
-- `pingtun_0.3.0_linux_arm64.tar.gz` — Linux ARM64 server and CLI client.
-- `pingtun_0.3.0_android.apk` — signed Android 10+ application, ARM64/x86_64.
-- `SHA256SUMS` — checksums of all assets. The APK keeps the previous app's
-  signing identity and can update it in place.
-- `ANDROID_SIGNING_CERT.txt` and `THIRD_PARTY_NOTICES.txt` — public signing
-  certificate fingerprint and license notices. Signing private keys and VPN
-  profiles are not distributed.
+After editing an account, download and reimport its profile on the client.
+Connectivity may stop until both ends use the new settings. Legacy services
+are not reconfigured. Installation needs root, systemd, nftables, forwarding and
+an HTTPS reverse proxy. Statistics reset with each process restart.
+Multi-file rollback does not protect against process/power failure during writes.
 
-One Linux binary supports both roles. Generate a new pair with `pingtun init`,
-or a dedicated phone profile with `pingtun mobile-init`. New pairs use adaptive
-v2; existing configs/profiles remain compatible. Use `init --legacy` for v1.
-Android does not require root or Google Play Services; its UI is currently Russian.
+The signed **Android APK remains 0.3.0**, versionCode 2, with the original signing
+identity and filename. No Android upgrade is required. Publication checks ensure
+its app/native source inputs have not changed. Linux archives are version 0.4.0;
+all assets have SHA-256 checksums and third-party license notices.
 
-Validation covers Go race/vet/fuzz, real WireGuard, Linux NAT with loss/reordering,
-file integrity, outage/server-restart recovery and a client without CAP_NET_RAW.
-Android emulator tests cover launch, app-UID ICMP and authenticated encrypted
-profile storage. A user confirmed LTE connection and browsing on a Pixel 9 Pro
-running GrapheneOS without root. Linux ARM64 is a separate build, not a claim
-of execution on every ARM board. See VALIDATION.md for evidence and limits.
-
-Scope: IPv4 only, one peer per server instance, separately configured Linux
-routing/NAT. Android captures and blocks IPv6. Physical multipath, FEC and a
-Windows client are not included. Long sleep, handoff, IPv6 bypass and system
-lockdown still need real-device testing. No external security audit has been
-completed. ICMP can be blocked or rate-limited by a network.
-
-Installation: [English](https://github.com/bug0000/pingtun/blob/v0.3.0/INSTALL.md),
-[русский](https://github.com/bug0000/pingtun/blob/v0.3.0/INSTALL.ru.md).
+IPv4 only; one peer per server instance. No FEC, physical aggregation or Windows
+client. Android sleep, handoff and lockdown still need further device validation.

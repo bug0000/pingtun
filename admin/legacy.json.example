@@ -1,0 +1,8 @@
+[
+  {
+    "id": "legacy-pingtun-mobile",
+    "name": "Ранее настроенный Android",
+    "kind": "android",
+    "client_address": "10.254.235.2/30"
+  }
+]

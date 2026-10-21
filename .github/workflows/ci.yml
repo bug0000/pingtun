@@ -14,6 +14,7 @@ jobs:
           go-version: '1.27.2'
           cache: true
       - run: test -z "$(gofmt -l cmd internal mobile/jni)"
+      - run: python3 -m unittest discover -s admin -v
       - run: go vet ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go test -race ./...
@@ -63,6 +64,9 @@ jobs:
           sudo install -m 644 tests/http_fixture.py "$pingtun_stage/tests/http_fixture.py"
           sudo install -m 644 deploy/*.nft "$pingtun_stage/deploy/"
           sudo install -m 755 deploy/link-up.sh "$pingtun_stage/deploy/link-up.sh"
+          sudo install -d -m 700 "$pingtun_stage/admin"
+          sudo install -m 644 admin/pingtun_admin.py admin/verify_transport.py "$pingtun_stage/admin/"
+          sudo unshare -Urn python3 "$pingtun_stage/admin/verify_transport.py" "$pingtun_stage/bin/pingtun"
           sudo env PINGTUN_LAB_MODE='${{ matrix.mode }}' PINGTUN_LAB_RAW='${{ matrix.raw }}' PINGTUN_LAB_ID_MODE='${{ matrix.id }}' PINGTUN_LAB_SOCKET_MODE='${{ matrix.socket }}' "$pingtun_stage/tests/netns.sh" "$pingtun_stage/bin/pingtun" /tmp/pingtun-ci-results
           if [ '${{ matrix.mode }}' = adaptive ]; then
             sudo cat /tmp/pingtun-ci-results/adaptive-summary.json

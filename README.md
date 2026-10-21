@@ -1,19 +1,22 @@
 # pingtun
 
-[Русский](README.ru.md) · [Install](INSTALL.md) · [Release 0.3.0](https://github.com/bug0000/pingtun/releases/tag/v0.3.0)
+[Русский](README.ru.md) · [Install](INSTALL.md) · [Release 0.4.0](https://github.com/bug0000/pingtun/releases/tag/v0.4.0)
 
-**pingtun 0.3.0** is an encrypted IPv4 VPN over ICMP Echo Request/Reply.
+**pingtun 0.4.0** is an encrypted IPv4 VPN over ICMP Echo Request/Reply.
 The Linux binary supports both server and CLI client; the Android application
 uses the system VPN API and ICMP datagram sockets without root or Google Play
 Services. WireGuard-go supplies peer authentication, encryption and replay
 protection. The carrier is written in Go; no Hans code is included.
 
+The 0.4.0 release adds the admin console and transport settings to Linux.
+The signed Android APK remains version 0.3.0 (unchanged code and signing identity).
+
 ## Downloads
 
-The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.3.0)
+The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.4.0)
 contains Linux amd64/arm64 archives, a signed Android 10+ APK, SHA256SUMS and
-license notices. Android uses the same signing identity as the previous app
-build (versionCode now 2), so it can update it in place. No signing private key,
+license notices. Android keeps versionCode 2 and its existing signing identity;
+the APK is identical to the 0.3.0 release. No signing private key,
 VPN profile or live configuration is included. The Android UI is currently Russian.
 
 ## Features and boundaries
@@ -21,14 +24,16 @@ VPN profile or live configuration is included. The Android UI is currently Russi
 - Adaptive v2: short idle controls, a shared packet pacer/window, bounded queues,
   logical lanes, server restart recovery and key-free statistics.
 - One encrypted peer per server instance; independent keys for every client.
+- An optional [web admin console](admin/README.ru.md) provisions and manages
+  separate instances for Android and Linux clients.
 - `init` creates v2 pairs with stable IDs, MTU 1280 / outer MTU 1440, two lanes,
   a 250 packets/s ceiling and a 32-request maximum window. `init --legacy`
   creates v1 pairs. Existing configs/profiles keep their protocol and identity.
 - `mobile-init` creates a dedicated Android profile. Android stores it with
   Keystore AES-GCM and retains its TUN while recovering the transport.
 - `probe`/`probe-server` measure authenticated ICMP separately from VPN traffic.
-- The Linux daemon creates only its own TUN. Routing, forwarding and NAT are
-  explicit administrator configuration. See [INSTALL.md](INSTALL.md).
+- The Linux daemon creates only its own TUN. Manual deployments configure
+  routing, forwarding and NAT explicitly. See [INSTALL.md](INSTALL.md).
 
 This release carries **IPv4 only**. Android captures and blocks IPv6. Multiple
 logical lanes share one path and are not physical aggregation. Physical

@@ -48,12 +48,29 @@ def api(path, data=None, method=None, content_type='application/json'):
 def manifest():
     m = json.loads((ROOT / 'release-artifacts.json').read_text())
     assert m['version'] == VERSION
+    assert re.fullmatch(r'\d+\.\d+\.\d+', m['android_version'])
+    assert re.fullmatch('[0-9a-f]{40}', m['android_source_sha'])
     for key in ['android_sha256', 'android_certificate_sha256', 'android_gzip_sha256']:
         assert re.fullmatch('[0-9a-f]{64}', m[key])
     assert 0 < m['android_size'] < 100_000_000 and 0 < m['android_gzip_size'] < 32_000_000
     assert 0 < len(m['android_gzip_blobs']) <= 128
     assert all(re.fullmatch('[0-9a-f]{40}', sha) for sha in m['android_gzip_blobs'])
     return m
+
+
+def verify_android_sources(sha):
+    # A carried-forward signed APK is valid only while its application and
+    # native-engine inputs remain identical to the reviewed source revision.
+    source = manifest()['android_source_sha']
+    def inputs(ref):
+        tree = api('/repos/' + REPO + '/git/trees/' + ref + '?recursive=1')
+        assert tree and not tree['truncated']
+        return {entry['path']: entry['sha'] for entry in tree['tree']
+                if entry['type'] == 'blob' and
+                (entry['path'].startswith(('android/', 'mobile/', 'internal/'))
+                 or entry['path'] in ('go.mod', 'go.sum'))}
+    if inputs(source) != inputs(sha):
+        raise RuntimeError('Signed Android APK sources differ; build and sign a new APK before release')
 
 
 def checked_sha():
@@ -80,6 +97,7 @@ def gate():
         if run['status'] != 'completed' or run['conclusion'] != 'success':
             return False
     manifest()
+    verify_android_sources(sha)
     return True
 
 
@@ -101,7 +119,7 @@ def download_android(out):
         apk = stream.read(m['android_size'] + 1)
     assert len(apk) == m['android_size'] and hashlib.sha256(apk).hexdigest() == m['android_sha256']
     out.mkdir(parents=True, exist_ok=True)
-    target = out / ('pingtun_' + VERSION + '_android.apk')
+    target = out / ('pingtun_' + m['android_version'] + '_android.apk')
     target.write_bytes(apk)
     return target
 
@@ -115,7 +133,7 @@ def verify_apk(out):
     subprocess.run([str(sdk / 'zipalign'), '-c', '-P', '16', '4', str(apk)], check=True)
     info = subprocess.check_output([str(sdk / 'aapt'), 'dump', 'badging', str(apk)], text=True)
     assert "name='io.github.bug0000.pingtun'" in info and "versionCode='2'" in info
-    assert "versionName='" + VERSION + "'" in info and 'application-debuggable' not in info
+    assert "versionName='" + manifest()['android_version'] + "'" in info and 'application-debuggable' not in info
     assert "sdkVersion:'29'" in info and "native-code: 'arm64-v8a' 'x86_64'" in info
     print('Public APK verified: version, certificate, non-debuggable, ABIs and 16 KiB alignment')
 
@@ -172,6 +190,8 @@ def package(out):
             (stage / 'android').mkdir()
             shutil.copyfile(ROOT / 'android/README.md', stage / 'android/README.md')
             shutil.copytree(ROOT / 'deploy', stage / 'deploy')
+            shutil.copytree(ROOT / 'admin', stage / 'admin',
+                            ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'test_*.py'))
             (stage / 'THIRD_PARTY_NOTICES.txt').write_text(license_text)
             (stage / 'DEPENDENCIES.txt').write_text(deps)
             info = 'version=' + VERSION + '\nsource=' + revision + '\nGOOS=linux\nGOARCH=' + arch + '\nCGO_ENABLED=0\n'

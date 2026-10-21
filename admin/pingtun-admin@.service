@@ -1,0 +1,28 @@
+[Unit]
+Description=pingtun managed client %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStartPre=-/usr/sbin/nft delete table ip pingtun_%i
+ExecStartPre=/usr/local/bin/pingtun check --config /etc/pingtun/admin/accounts/%i/server.json
+ExecStartPre=/usr/sbin/nft -f /etc/pingtun/admin/accounts/%i/network.nft
+ExecStart=/usr/local/bin/pingtun run --config /etc/pingtun/admin/accounts/%i/server.json --stats-interval 30s
+ExecStopPost=-/usr/sbin/nft delete table ip pingtun_%i
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_NETLINK AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

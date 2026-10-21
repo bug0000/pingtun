@@ -1,5 +1,7 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
+  "android_version": "0.3.0",
+  "android_source_sha": "71b4df551b587772bad4f4c7fc80c9cbabdbeefd",
   "android_sha256": "05ca5d0c6981bba61c088584652677e5534e57a75d139cc72c39d52419ed5350",
   "android_size": 9724804,
   "android_certificate_sha256": "fac746a82c727430f9b6af94ef1ffb003c09b129400ed5709fb1d8ae81af1476",
