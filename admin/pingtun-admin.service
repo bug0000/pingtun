@@ -1,0 +1,20 @@
+[Unit]
+Description=pingtun local account console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/pingtun/admin/server.env
+ExecStart=/usr/bin/python3 /usr/local/lib/pingtun-admin/pingtun_admin.py --server-ip ${PINGTUN_SERVER_IP} --external-if ${PINGTUN_EXTERNAL_IF}
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

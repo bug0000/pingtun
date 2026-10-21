@@ -21,14 +21,16 @@ VPN profile or live configuration is included. The Android UI is currently Russi
 - Adaptive v2: short idle controls, a shared packet pacer/window, bounded queues,
   logical lanes, server restart recovery and key-free statistics.
 - One encrypted peer per server instance; independent keys for every client.
+- An optional [local admin console](admin/README.ru.md) provisions and manages
+  separate instances for Android and Linux clients.
 - `init` creates v2 pairs with stable IDs, MTU 1280 / outer MTU 1440, two lanes,
   a 250 packets/s ceiling and a 32-request maximum window. `init --legacy`
   creates v1 pairs. Existing configs/profiles keep their protocol and identity.
 - `mobile-init` creates a dedicated Android profile. Android stores it with
   Keystore AES-GCM and retains its TUN while recovering the transport.
 - `probe`/`probe-server` measure authenticated ICMP separately from VPN traffic.
-- The Linux daemon creates only its own TUN. Routing, forwarding and NAT are
-  explicit administrator configuration. See [INSTALL.md](INSTALL.md).
+- The Linux daemon creates only its own TUN. Manual deployments configure
+  routing, forwarding and NAT explicitly. See [INSTALL.md](INSTALL.md).
 
 This release carries **IPv4 only**. Android captures and blocks IPv6. Multiple
 logical lanes share one path and are not physical aggregation. Physical

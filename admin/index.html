@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pingtun · администрирование</title><link rel="stylesheet" href="/style.css"></head>
+<body><main>
+<header><div><small>pingtun / сервер</small><h1>Клиентские аккаунты</h1></div><button id="refresh" type="button">Обновить</button></header>
+<section class="panel"><h2>Добавить клиента</h2><form id="create">
+<label>Имя клиента<input name="name" maxlength="64" required autocomplete="off" placeholder="Например, телефон Анны"></label>
+<label>Тип<select name="kind"><option value="android">Android</option><option value="linux">Linux</option></select></label>
+<button type="submit">Создать аккаунт</button></form>
+<p class="hint">Каждому клиенту создаются свои ключи, TUN и адрес. Профиль передавайте только по защищённому каналу.</p></section>
+<p id="message" role="status"></p>
+<section class="panel"><div class="row"><h2>Аккаунты</h2><span id="count"></span></div><div id="accounts" class="accounts"></div></section>
+<p class="hint">Счётчики трафика показывают данные с последнего запуска процесса. Админка доступна только через SSH‑туннель.</p>
+</main><script src="/app.js"></script></body></html>
