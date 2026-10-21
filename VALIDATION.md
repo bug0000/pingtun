@@ -71,8 +71,7 @@ now use the isolated lab to separate implementation behavior from that path.
   creation, private metadata, Keystore encryption and tamper detection).
   The Android workflow records its launch screenshot and test output.
 
-Initial phone test on 2026-10-17: the user confirmed that a Pixel 9 Pro with
-GrapheneOS, no root and LTE connected and opened websites. An independent
+Initial phone test on 2026-10-17: a physical Android device without root connected over LTE and opened websites. An independent
 server instance with a separate peer identity recorded authenticated carrier
 datagrams and bidirectional forwarded IPv4 traffic with NAT. The existing
 gateway binaries and services were not upgraded or restarted for this test.

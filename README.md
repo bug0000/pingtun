@@ -1,22 +1,21 @@
 # pingtun
 
-[Русский](README.ru.md) · [Install](INSTALL.md) · [Release 0.4.0](https://github.com/bug0000/pingtun/releases/tag/v0.4.0)
+[Русский](README.ru.md) · [Install](INSTALL.md) · [Release 0.4.1](https://github.com/bug0000/pingtun/releases/tag/v0.4.1)
 
-**pingtun 0.4.0** is an encrypted IPv4 VPN over ICMP Echo Request/Reply.
+**pingtun 0.4.1** is an encrypted IPv4 VPN over ICMP Echo Request/Reply.
 The Linux binary supports both server and CLI client; the Android application
 uses the system VPN API and ICMP datagram sockets without root or Google Play
 Services. WireGuard-go supplies peer authentication, encryption and replay
 protection. The carrier is written in Go; no Hans code is included.
 
-The 0.4.0 release adds the admin console and transport settings to Linux.
-The signed Android APK remains version 0.3.0 (unchanged code and signing identity).
+The 0.4.1 release adds the admin console and transport settings to Linux.
+Android 0.4.1 adds a redesigned interface, adaptive icon and About/contact screen.
 
 ## Downloads
 
-The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.4.0)
+The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.4.1)
 contains Linux amd64/arm64 archives, a signed Android 10+ APK, SHA256SUMS and
-license notices. Android keeps versionCode 2 and its existing signing identity;
-the APK is identical to the 0.3.0 release. No signing private key,
+license notices. Android versionCode 3 keeps its existing signing identity and updates in place. No signing private key,
 VPN profile or live configuration is included. The Android UI is currently Russian.
 
 ## Features and boundaries
@@ -72,8 +71,7 @@ CI includes decoder fuzzing, dependency scanning, real WireGuard and Linux
 namespace tests with NAT, loss/reordering, encrypted file checks, blackout and
 server restart recovery. A datagram client is tested with CAP_NET_RAW removed.
 Android CI checks launch, app-UID ICMP and authenticated profile storage in an
-Android 15 emulator. A user confirmed initial LTE browsing on a Pixel 9 Pro
-with GrapheneOS and no root. This is one device/network case; sleep, handoff,
+Android 15 emulator. Initial LTE browsing was confirmed on a physical Android device without root. This is one device/network case; sleep, handoff,
 IPv6 bypass, lockdown and longer sessions still need device validation.
 
 See [VALIDATION.md](VALIDATION.md), [LAB.md](LAB.md), [PROTOCOL.md](PROTOCOL.md),

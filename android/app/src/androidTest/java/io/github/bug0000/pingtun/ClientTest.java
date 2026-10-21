@@ -26,6 +26,51 @@ public final class ClientTest {
         return new JSONObject().put("version", 1).put("name", "Instrumented test").put("address", "10.203.0.2/30")
             .put("dns", new JSONArray().put("1.1.1.1")).put("config", c).toString();
     }
+    private boolean contains(android.view.View view, String text) {
+        if (view instanceof android.widget.TextView && ((android.widget.TextView)view).getText().toString().contains(text)) return true;
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup)view;
+            for (int i = 0; i < group.getChildCount(); i++) if (contains(group.getChildAt(i), text)) return true;
+        }
+        return false;
+    }
+    @Test public void aboutShowsVersionDescriptionAndContact() throws Exception {
+        android.app.Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        android.app.Activity activity = instrumentation.startActivitySync(new android.content.Intent(context, AboutActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+        instrumentation.waitForIdleSync();
+        android.os.SystemClock.sleep(800);
+        instrumentation.runOnMainSync(() -> {
+            android.view.View root = activity.getWindow().getDecorView();
+            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "bug@pizd.ec"));
+            assertTrue(contains(root, BuildConfig.VERSION_NAME)); assertTrue(contains(root, "ICMP"));
+            assertFalse(contains(root, "Pixel")); assertFalse(contains(root, "эксперимент"));
+        });
+        android.graphics.Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
+        assertNotNull(screenshot);
+        try (java.io.FileOutputStream out = context.openFileOutput("about-preview.png", Context.MODE_PRIVATE)) {
+            screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+        } finally { screenshot.recycle(); instrumentation.runOnMainSync(activity::finish); }
+    }
+    @Test public void mainHasCleanConnectionActionsAndLauncherIcon() throws Exception {
+        android.app.Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        Context context = instrumentation.getTargetContext();
+        assertNotNull(context.getPackageManager().getApplicationIcon(context.getPackageName()));
+        android.app.Activity activity = instrumentation.startActivitySync(new android.content.Intent(context, MainActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+        instrumentation.waitForIdleSync();
+        android.os.SystemClock.sleep(800);
+        instrumentation.runOnMainSync(() -> {
+            android.view.View root = activity.getWindow().getDecorView();
+            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "Импортировать профиль"));
+            assertTrue(contains(root, "Подключить")); assertFalse(contains(root, "Pixel"));
+            assertFalse(contains(root, "эксперимент"));
+        });
+        android.graphics.Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
+        assertNotNull(screenshot);
+        try (java.io.FileOutputStream out = context.openFileOutput("main-preview.png", Context.MODE_PRIVATE)) {
+            screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
+        } finally { screenshot.recycle(); instrumentation.runOnMainSync(activity::finish); }
+    }
     @Test public void nativeProfileValidationExposesNoKeys() throws Exception {
         JSONObject info = new JSONObject(NativeEngine.inspect(profile()));
         assertEquals("192.0.2.1", info.getString("server_ip"));

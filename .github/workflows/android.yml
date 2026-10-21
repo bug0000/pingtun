@@ -89,11 +89,18 @@ jobs:
           adb exec-out screencap -p > /tmp/pingtun-android-preview.png
           adb shell am instrument -w io.github.bug0000.pingtun.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/pingtun-android-tests.txt
           grep -Eq '^OK \([0-9]+ tests?\)' /tmp/pingtun-android-tests.txt
+          adb exec-out run-as io.github.bug0000.pingtun cat files/main-preview.png > /tmp/pingtun-android-main.png
+          adb exec-out run-as io.github.bug0000.pingtun cat files/about-preview.png > /tmp/pingtun-android-about.png
       - name: Launch the signed release APK
         if: hashFiles('release-artifacts.json') != ''
         run: |
           adb uninstall io.github.bug0000.pingtun
-          adb install dist/pingtun_0.3.0_android.apk
+          curl --fail --location --retry 3 https://github.com/bug0000/pingtun/releases/download/v0.4.0/pingtun_0.3.0_android.apk --output /tmp/pingtun-previous.apk
+          echo '05ca5d0c6981bba61c088584652677e5534e57a75d139cc72c39d52419ed5350  /tmp/pingtun-previous.apk' | sha256sum --check
+          adb install /tmp/pingtun-previous.apk
+          adb install -r dist/pingtun_0.4.1_android.apk
+          adb shell dumpsys package io.github.bug0000.pingtun | grep -F 'versionCode=3'
+          adb shell dumpsys package io.github.bug0000.pingtun | grep -F 'versionName=0.4.1'
           adb shell am start -W io.github.bug0000.pingtun/.MainActivity
           sleep 2
           adb shell pidof io.github.bug0000.pingtun
@@ -107,4 +114,6 @@ jobs:
             /tmp/pingtun-android-tests.txt
             /tmp/pingtun-android-preview.png
             /tmp/pingtun-android-release.png
+            /tmp/pingtun-android-main.png
+            /tmp/pingtun-android-about.png
           if-no-files-found: warn

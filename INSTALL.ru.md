@@ -1,4 +1,4 @@
-# Установка pingtun 0.4.0
+# Установка pingtun 0.4.1
 
 [English](INSTALL.md) · [Android](android/README.md)
 
@@ -14,8 +14,8 @@ SHA256SUMS из того же релиза и проверьте файлы до
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-tar -xzf pingtun_0.4.0_linux_amd64.tar.gz
-cd pingtun_0.4.0_linux_amd64
+tar -xzf pingtun_0.4.1_linux_amd64.tar.gz
+cd pingtun_0.4.1_linux_amd64
 sudo install -m 755 bin/pingtun /usr/local/bin/pingtun
 sudo install -d -m 755 /usr/local/libexec
 sudo install -m 755 deploy/link-up.sh /usr/local/libexec/pingtun-link-up
@@ -38,7 +38,7 @@ pingtun init --server 203.0.113.10 --dir configs
 
 Новые пары используют v2 и стабильные ICMP ID. Для v1 есть `init --legacy`.
 Отсутствие объекта adaptive в старом JSON тоже означает v1: протоколы сторон
-должны совпадать. Существующие профили и ключи при обновлении до 0.4.0 менять не надо.
+должны совпадать. Существующие профили и ключи при обновлении до 0.4.1 менять не надо.
 Один профиль нельзя одновременно использовать на двух устройствах.
 
 Каталоги имеют права 0700, файлы — 0600. Передайте server.json только на сервер,
