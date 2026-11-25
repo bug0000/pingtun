@@ -42,7 +42,7 @@ public final class ClientTest {
         android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
-            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "bug@pizd.ec"));
+            assertTrue(contains(root, context.getString(R.string.about))); assertTrue(contains(root, "bug@pizd.ec"));
             assertTrue(contains(root, BuildConfig.VERSION_NAME)); assertTrue(contains(root, "ICMP"));
             assertFalse(contains(root, "Pixel")); assertFalse(contains(root, "эксперимент"));
         });
@@ -61,8 +61,8 @@ public final class ClientTest {
         android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
-            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "Импортировать профиль"));
-            assertTrue(contains(root, "Подключить")); assertFalse(contains(root, "Pixel"));
+            assertTrue(contains(root, context.getString(R.string.about))); assertTrue(contains(root, context.getString(R.string.import_profile)));
+            assertTrue(contains(root, context.getString(R.string.connect))); assertFalse(contains(root, "Pixel"));
             assertFalse(contains(root, "эксперимент"));
         });
         android.graphics.Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
