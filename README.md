@@ -16,7 +16,7 @@ Android 0.4.1 adds a redesigned interface, adaptive icon and About/contact scree
 The [GitHub release](https://github.com/bug0000/pingtun/releases/tag/v0.4.1)
 contains Linux amd64/arm64 archives, a signed Android 10+ APK, SHA256SUMS and
 license notices. Android versionCode 3 keeps its existing signing identity and updates in place. No signing private key,
-VPN profile or live configuration is included. The Android interface supports English and Russian, based on the device language.
+VPN profile or live configuration is included. The development version supports English and Russian, based on the device language; the 0.4.1 APK uses Russian.
 
 ## Features and boundaries
 

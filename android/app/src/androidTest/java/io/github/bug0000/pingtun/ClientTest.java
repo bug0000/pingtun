@@ -71,6 +71,20 @@ public final class ClientTest {
             screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         } finally { screenshot.recycle(); instrumentation.runOnMainSync(activity::finish); }
     }
+    @Test public void englishAndRussianResourcesAreAvailable() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        android.content.res.Configuration config = new android.content.res.Configuration(context.getResources().getConfiguration());
+        config.setLocale(java.util.Locale.ENGLISH);
+        Context english = context.createConfigurationContext(config);
+        assertEquals("Connect", english.getString(R.string.connect));
+        assertEquals("Disconnected", english.getString(R.string.disconnected));
+        assertEquals("VPN connection", english.getString(R.string.vpn_channel));
+        config.setLocale(new java.util.Locale("ru"));
+        Context russian = context.createConfigurationContext(config);
+        assertEquals("Подключить", russian.getString(R.string.connect));
+        assertEquals("Отключено", russian.getString(R.string.disconnected));
+        assertEquals("Соединение VPN", russian.getString(R.string.vpn_channel));
+    }
     @Test public void nativeProfileValidationExposesNoKeys() throws Exception {
         JSONObject info = new JSONObject(NativeEngine.inspect(profile()));
         assertEquals("192.0.2.1", info.getString("server_ip"));
