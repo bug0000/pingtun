@@ -30,6 +30,7 @@ public final class MainActivity extends Activity {
     private TextView profile, endpoint, status, detail, action, rx, tx, latency;
     private Button connect, importer, settings;
     private boolean haveProfile;
+    private boolean importing;
     private final Runnable refresh = new Runnable() { public void run() { render(); main.postDelayed(this, 1000); } };
     private int dp(int n) { return Ui.dp(this, n); }
     private TextView centered(String value, int size, int color, boolean bold) {
@@ -112,7 +113,7 @@ public final class MainActivity extends Activity {
                 if (info.has("error")) throw new IllegalStateException();
                 String name = info.getString("name"); String endpoint = info.getString("server_ip");
                 main.post(() -> { if (isDestroyed()) return; haveProfile = true; profile.setText(name); this.endpoint.setText(endpoint); importer.setText(getString(R.string.replace_profile)); render(); });
-            } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed()) profile.setText(getString(R.string.profile_unavailable)); }); }
+            } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed()) { haveProfile = false; profile.setText(getString(R.string.profile_unavailable)); endpoint.setText(getString(R.string.profile_description)); render(); } }); }
         });
     }
     private void prepareVpn() {
@@ -127,24 +128,25 @@ public final class MainActivity extends Activity {
         if (request == 44 && result == RESULT_OK) startForegroundService(new Intent(this, TunnelService.class));
         if (request == 43 && result == RESULT_OK && data != null && data.getData() != null) {
             if (VpnState.running) return;
+            importing = true; render();
             files.execute(() -> {
                 try (InputStream in = getContentResolver().openInputStream(data.getData())) {
                     if (in == null) throw new java.io.IOException();
                     String value = new String(ProfileStore.readBounded(in, 65536), StandardCharsets.UTF_8);
-                    new ProfileStore(this).save(value); main.post(() -> { if (!isDestroyed()) loadProfile(); });
-                } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed() && !isFinishing()) new android.app.AlertDialog.Builder(this).setTitle(getString(R.string.import_failed))
-                    .setMessage(getString(R.string.import_help)).setPositiveButton(getString(R.string.ok), null).show(); }); }
+                    new ProfileStore(this).save(value); main.post(() -> { if (!isDestroyed()) { importing = false; loadProfile(); render(); } });
+                } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed() && !isFinishing()) { importing = false; render(); new android.app.AlertDialog.Builder(this).setTitle(getString(R.string.import_failed))
+                    .setMessage(getString(R.string.import_help)).setPositiveButton(getString(R.string.ok), null).show(); } }); }
             });
         }
     }
     private void render() {
         status.setText(VpnState.message);
         detail.setText(!haveProfile && !VpnState.running && VpnState.message == R.string.disconnected ? getString(R.string.add_profile_hint) : getString(VpnState.detail));
-        boolean enabled = haveProfile || VpnState.running;
+        boolean enabled = !importing && (haveProfile || VpnState.running);
         connect.setEnabled(enabled); connect.setAlpha(enabled ? 1f : .35f);
         String label = VpnState.running ? getString(R.string.disconnect) : getString(R.string.connect);
         connect.setContentDescription(label); action.setText(label);
-        importer.setEnabled(!VpnState.running); importer.setAlpha(VpnState.running ? .45f : 1f);
+        importer.setEnabled(!VpnState.running && !importing); importer.setAlpha(VpnState.running || importing ? .45f : 1f);
         try {
             JSONObject s = new JSONObject(VpnState.stats);
             rx.setText(VpnState.running && s.has("rx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f MB", s.optLong("rx_bytes") / 1000000.0) : "—");

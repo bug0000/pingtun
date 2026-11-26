@@ -91,6 +91,43 @@ public final class ClientTest {
         assertFalse(info.has("config")); assertFalse(info.has("private_key"));
         assertTrue(new JSONObject(NativeEngine.inspect("{\"private_key\":\"secret\"}")).has("error"));
     }
+    @Test public void invalidReplacementPreservesExistingProfile() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        ProfileStore store = new ProfileStore(context);
+        String original = profile();
+        try {
+            store.save(original);
+            try {
+                new ProfileStore(context).save("{}");
+                fail("invalid profile must be rejected");
+            } catch (java.io.IOException expected) { }
+            assertEquals(original, new ProfileStore(context).load());
+        } finally {
+            new File(context.getNoBackupFilesDir(), "profile.enc").delete();
+        }
+    }
+    @Test public void profileStoresCoordinateConcurrentAccess() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        String original = profile();
+        ProfileStore first = new ProfileStore(context);
+        ProfileStore second = new ProfileStore(context);
+        first.save(original);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<?> writer = pool.submit(() -> {
+                try { for (int i = 0; i < 20; i++) first.save(original); }
+                catch (Exception e) { throw new RuntimeException(e); }
+            });
+            java.util.concurrent.Future<?> reader = pool.submit(() -> {
+                try { for (int i = 0; i < 20; i++) assertEquals(original, second.load()); }
+                catch (Exception e) { throw new RuntimeException(e); }
+            });
+            writer.get(); reader.get();
+        } finally {
+            pool.shutdownNow();
+            new File(context.getNoBackupFilesDir(), "profile.enc").delete();
+        }
+    }
     @Test public void rootlessIcmpSocketCanBeOpened() {
         assertTrue("test must execute as an app UID", android.os.Process.myUid() >= 10000);
         assertNull("AOSP app should be allowed a datagram ICMP socket", NativeEngine.probeSocket());
