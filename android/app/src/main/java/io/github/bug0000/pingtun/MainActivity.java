@@ -52,12 +52,12 @@ public final class MainActivity extends Activity {
         header.addView(mark, new LinearLayout.LayoutParams(dp(38), dp(38)));
         TextView brand = Ui.text(this, "pingtun", 25, Ui.TEXT, true);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1); bp.leftMargin = dp(12); header.addView(brand, bp);
-        Button about = Ui.button(this, "О приложении", false); about.setTextSize(13);
+        Button about = Ui.button(this, getString(R.string.about), false); about.setTextSize(13);
         about.setOnClickListener(v -> startActivity(new Intent(this, AboutActivity.class))); header.addView(about);
         Ui.add(this, body, header, 0);
-        Ui.add(this, body, centered("ВАШ ЛИЧНЫЙ ТУННЕЛЬ", 11, Ui.ACCENT, true), 46);
-        status = centered("Отключено", 30, Ui.TEXT, true); status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); Ui.add(this, body, status, 15);
-        detail = centered("Добавьте профиль, чтобы начать", 14, Ui.MUTED, false); Ui.add(this, body, detail, 12);
+        Ui.add(this, body, centered(getString(R.string.private_tunnel), 11, Ui.ACCENT, true), 46);
+        status = centered(getString(R.string.disconnected), 30, Ui.TEXT, true); status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); Ui.add(this, body, status, 15);
+        detail = centered(getString(R.string.add_profile_hint), 14, Ui.MUTED, false); Ui.add(this, body, detail, 12);
         connect = new PowerButton(this);
         LinearLayout.LayoutParams powerParams = new LinearLayout.LayoutParams(dp(176), dp(176)); powerParams.gravity = android.view.Gravity.CENTER_HORIZONTAL; powerParams.topMargin = dp(32); body.addView(connect, powerParams);
         connect.setOnClickListener(v -> {
@@ -66,32 +66,32 @@ public final class MainActivity extends Activity {
                 requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 42);
             else prepareVpn();
         });
-        action = centered("Подключить", 16, Ui.TEXT, true); Ui.add(this, body, action, 18);
+        action = centered(getString(R.string.connect), 16, Ui.TEXT, true); Ui.add(this, body, action, 18);
         LinearLayout metrics = new LinearLayout(this); metrics.setPadding(dp(8), dp(22), dp(8), dp(22)); metrics.setBackground(Ui.shape(this, Ui.CARD, 22));
-        rx = metric(metrics, "Получено"); tx = metric(metrics, "Отправлено"); latency = metric(metrics, "Задержка"); Ui.add(this, body, metrics, 34);
+        rx = metric(metrics, getString(R.string.received)); tx = metric(metrics, getString(R.string.sent)); latency = metric(metrics, getString(R.string.latency)); Ui.add(this, body, metrics, 34);
         LinearLayout card = Ui.column(this); card.setPadding(dp(20), dp(20), dp(20), dp(20)); card.setBackground(Ui.shape(this, Ui.CARD, 22));
-        card.addView(Ui.text(this, "ПРОФИЛЬ ПОДКЛЮЧЕНИЯ", 11, Ui.MUTED, true));
-        profile = Ui.text(this, "Добавьте профиль", 19, Ui.TEXT, true); Ui.add(this, card, profile, 14);
-        endpoint = Ui.text(this, "Личный профиль от вашего сервера", 13, Ui.MUTED, false); Ui.add(this, card, endpoint, 8);
-        importer = Ui.button(this, "Импортировать профиль", false); importer.setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x24FFFFFF), Ui.shape(this, Color.rgb(38, 55, 58), 14), null));
+        card.addView(Ui.text(this, getString(R.string.connection_profile), 11, Ui.MUTED, true));
+        profile = Ui.text(this, getString(R.string.add_profile), 19, Ui.TEXT, true); Ui.add(this, card, profile, 14);
+        endpoint = Ui.text(this, getString(R.string.profile_description), 13, Ui.MUTED, false); Ui.add(this, card, endpoint, 8);
+        importer = Ui.button(this, getString(R.string.import_profile), false); importer.setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x24FFFFFF), Ui.shape(this, Color.rgb(38, 55, 58), 14), null));
         importer.setOnClickListener(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 43)); Ui.add(this, card, importer, 18); Ui.add(this, body, card, 14);
-        settings = Ui.button(this, "Настройки соединения", false); settings.setOnClickListener(v -> showSettings()); Ui.add(this, body, settings, 14);
-        Ui.add(this, body, centered("Без root. По своему маршруту.", 12, Ui.MUTED, false), 24);
+        settings = Ui.button(this, getString(R.string.connection_settings), false); settings.setOnClickListener(v -> showSettings()); Ui.add(this, body, settings, 14);
+        Ui.add(this, body, centered(getString(R.string.tagline), 12, Ui.MUTED, false), 24);
         loadProfile(); render();
     }
     private void showSettings() {
         LinearLayout content = Ui.column(this); content.setPadding(dp(24), dp(8), dp(24), dp(8));
-        Switch awake = new Switch(this); awake.setText("Связь при выключенном экране"); awake.setTextSize(15); awake.setTextColor(Ui.TEXT); awake.setPadding(0, dp(12), 0, dp(12));
+        Switch awake = new Switch(this); awake.setText(getString(R.string.keep_awake)); awake.setTextSize(15); awake.setTextColor(Ui.TEXT); awake.setPadding(0, dp(12), 0, dp(12));
         awake.setChecked(getSharedPreferences("ui", MODE_PRIVATE).getBoolean("awake", false)); awake.setEnabled(!VpnState.running);
         awake.setOnCheckedChangeListener((v, checked) -> getSharedPreferences("ui", MODE_PRIVATE).edit().putBoolean("awake", checked).apply()); content.addView(awake);
-        Ui.add(this, content, Ui.text(this, "Помогает поддерживать фоновое соединение и повышает расход батареи. Меняйте настройку до подключения.", 14, Ui.MUTED, false), 12);
-        Ui.add(this, content, Ui.text(this, "При потере связи VPN удерживает трафик до восстановления соединения. Чтобы защитить трафик и после остановки приложения, включите «Блокировать подключения без VPN» в системных настройках Android.", 14, Ui.MUTED, false), 20);
-        new android.app.AlertDialog.Builder(this).setTitle("Настройки соединения").setView(content).setPositiveButton("Готово", null).show();
+        Ui.add(this, content, Ui.text(this, getString(R.string.keep_awake_help), 14, Ui.MUTED, false), 12);
+        Ui.add(this, content, Ui.text(this, getString(R.string.vpn_lockdown_help), 14, Ui.MUTED, false), 20);
+        new android.app.AlertDialog.Builder(this).setTitle(getString(R.string.connection_settings)).setView(content).setPositiveButton(getString(R.string.done), null).show();
     }
     private static final class PowerButton extends Button {
         private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         PowerButton(Activity a) {
-            super(a); setText(""); setContentDescription("Подключить"); setMinWidth(0); setMinHeight(0);
+            super(a); setText(""); setContentDescription(a.getString(R.string.connect)); setMinWidth(0); setMinHeight(0);
             setStateListAnimator(null);
             setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x3388AA55), Ui.shape(a, Ui.ACCENT, 100), null));
         }
@@ -111,8 +111,8 @@ public final class MainActivity extends Activity {
                 JSONObject info = new JSONObject(NativeEngine.inspect(store.load()));
                 if (info.has("error")) throw new IllegalStateException();
                 String name = info.getString("name"); String endpoint = info.getString("server_ip");
-                main.post(() -> { if (isDestroyed()) return; haveProfile = true; profile.setText(name); this.endpoint.setText(endpoint); importer.setText("Заменить профиль"); render(); });
-            } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed()) profile.setText("Профиль недоступен. Импортируйте его снова."); }); }
+                main.post(() -> { if (isDestroyed()) return; haveProfile = true; profile.setText(name); this.endpoint.setText(endpoint); importer.setText(getString(R.string.replace_profile)); render(); });
+            } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed()) profile.setText(getString(R.string.profile_unavailable)); }); }
         });
     }
     private void prepareVpn() {
@@ -132,24 +132,24 @@ public final class MainActivity extends Activity {
                     if (in == null) throw new java.io.IOException();
                     String value = new String(ProfileStore.readBounded(in, 65536), StandardCharsets.UTF_8);
                     new ProfileStore(this).save(value); main.post(() -> { if (!isDestroyed()) loadProfile(); });
-                } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed() && !isFinishing()) new android.app.AlertDialog.Builder(this).setTitle("Профиль не импортирован")
-                    .setMessage("Нужен мобильный профиль pingtun, созданный отдельно для этого устройства.").setPositiveButton("Понятно", null).show(); }); }
+                } catch (Exception | LinkageError e) { main.post(() -> { if (!isDestroyed() && !isFinishing()) new android.app.AlertDialog.Builder(this).setTitle(getString(R.string.import_failed))
+                    .setMessage(getString(R.string.import_help)).setPositiveButton(getString(R.string.ok), null).show(); }); }
             });
         }
     }
     private void render() {
         status.setText(VpnState.message);
-        detail.setText(!haveProfile && !VpnState.running ? "Добавьте профиль, чтобы начать" : VpnState.detail);
+        detail.setText(!haveProfile && !VpnState.running && VpnState.message == R.string.disconnected ? getString(R.string.add_profile_hint) : getString(VpnState.detail));
         boolean enabled = haveProfile || VpnState.running;
         connect.setEnabled(enabled); connect.setAlpha(enabled ? 1f : .35f);
-        String label = VpnState.running ? "Отключить" : "Подключить";
+        String label = VpnState.running ? getString(R.string.disconnect) : getString(R.string.connect);
         connect.setContentDescription(label); action.setText(label);
         importer.setEnabled(!VpnState.running); importer.setAlpha(VpnState.running ? .45f : 1f);
         try {
             JSONObject s = new JSONObject(VpnState.stats);
-            rx.setText(VpnState.running && s.has("rx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f МБ", s.optLong("rx_bytes") / 1000000.0) : "—");
-            tx.setText(VpnState.running && s.has("tx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f МБ", s.optLong("tx_bytes") / 1000000.0) : "—");
-            latency.setText(VpnState.running && s.optLong("rtt_us") > 0 ? String.format(java.util.Locale.getDefault(), "%.0f мс", s.optLong("rtt_us") / 1000.0) : "—");
+            rx.setText(VpnState.running && s.has("rx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f MB", s.optLong("rx_bytes") / 1000000.0) : "—");
+            tx.setText(VpnState.running && s.has("tx_bytes") ? String.format(java.util.Locale.getDefault(), "%.1f MB", s.optLong("tx_bytes") / 1000000.0) : "—");
+            latency.setText(VpnState.running && s.optLong("rtt_us") > 0 ? String.format(java.util.Locale.getDefault(), "%.0f ms", s.optLong("rtt_us") / 1000.0) : "—");
         } catch (Exception ignored) { rx.setText("—"); tx.setText("—"); latency.setText("—"); }
     }
     @Override protected void onResume() { super.onResume(); main.post(refresh); }

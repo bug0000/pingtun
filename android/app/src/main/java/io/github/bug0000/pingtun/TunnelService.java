@@ -42,14 +42,14 @@ public final class TunnelService extends VpnService {
         worker.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         worker.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         NotificationManager notifications = getSystemService(NotificationManager.class);
-        notifications.createNotificationChannel(new NotificationChannel("vpn", "Соединение VPN", NotificationManager.IMPORTANCE_LOW));
+        notifications.createNotificationChannel(new NotificationChannel("vpn", getString(R.string.vpn_channel), NotificationManager.IMPORTANCE_LOW));
         worker.scheduleWithFixedDelay(this::refresh, 1, 2, TimeUnit.SECONDS);
     }
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && STOP.equals(intent.getAction())) {
             post(() -> { closeSession(); stopSelf(); }); return START_NOT_STICKY;
         }
-        Notification notification = notification("Подключение…");
+        Notification notification = notification(getString(R.string.connecting));
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
         else startForeground(1, notification);
         post(this::connect);
@@ -60,13 +60,13 @@ public final class TunnelService extends VpnService {
         PendingIntent stop = PendingIntent.getService(this, 1, new Intent(this, TunnelService.class).setAction(STOP), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(this, "vpn").setSmallIcon(R.drawable.ic_status)
             .setContentTitle("pingtun").setContentText(text).setContentIntent(open).setOngoing(true)
-            .addAction(new Notification.Action.Builder(null, "Отключить", stop).build()).build();
+            .addAction(new Notification.Action.Builder(null, getString(R.string.disconnect), stop).build()).build();
     }
-    private void state(String title, String detail) {
+    private void state(int title, int detail) {
         VpnState.message = title; VpnState.detail = detail;
-        if (!title.equals(notificationText)) {
-            notificationText = title;
-            getSystemService(NotificationManager.class).notify(1, notification(title));
+        if (!getString(title).equals(notificationText)) {
+            notificationText = getString(title);
+            getSystemService(NotificationManager.class).notify(1, notification(getString(title)));
         }
     }
     @android.annotation.SuppressLint("WakelockTimeout") // Explicit user opt-in; released with the VPN session.
@@ -98,17 +98,17 @@ public final class TunnelService extends VpnService {
             watchNetworks(); startEngine();
         } catch (Exception | LinkageError e) {
             if (tunnel == null) {
-                closeSession(); VpnState.message = "Не удалось подключиться";
-                VpnState.detail = "Проверьте профиль и разрешение на VPN"; stopSelf();
-            } else state("Нет соединения", "Трафик приостановлен. Проверьте разрешение «Сеть» и доступность ICMP.");
+                closeSession(); VpnState.message = R.string.connection_failed;
+                VpnState.detail = R.string.check_profile; stopSelf();
+            } else state(R.string.no_connection, R.string.network_error);
         }
     }
     private void startEngine() {
         lastAttempt = SystemClock.elapsedRealtime();
         String error = NativeEngine.start(tunnel.getFd(), profile, this);
         engineActive = error == null;
-        if (!engineActive) state("Нет соединения", "Трафик приостановлен. Проверьте разрешение «Сеть» и доступность ICMP.");
-        else state("Подключение…", "Устанавливаем защищённое соединение");
+        if (!engineActive) state(R.string.no_connection, R.string.network_error);
+        else state(R.string.connecting, R.string.securing);
     }
     private void reconnect() {
         if (!desired || tunnel == null) return;
@@ -123,13 +123,13 @@ public final class TunnelService extends VpnService {
             }
             String raw = NativeEngine.snapshot();
             JSONObject stats = new JSONObject(raw); VpnState.stats = raw;
-            if (stats.has("error")) { NativeEngine.stop(); engineActive = false; state("Восстановление…", "Трафик приостановлен до восстановления связи"); return; }
+            if (stats.has("error")) { NativeEngine.stop(); engineActive = false; state(R.string.reconnecting, R.string.reconnect_paused); return; }
             long reply = stats.optLong("last_reply_unix");
             long now = stats.optLong("now_unix");
             if (stats.optLong("last_handshake_time_sec") > 0 && reply > 0 && now - reply <= 10)
-                state("Подключено", "Защищённое соединение активно");
-            else state("Ожидание сервера", "Трафик приостановлен до установления защищённой связи");
-        } catch (Exception | LinkageError e) { state("Нет соединения", "Трафик приостановлен. Можно отключить VPN и подключиться снова."); }
+                state(R.string.connected, R.string.secure_active);
+            else state(R.string.waiting_server, R.string.waiting_paused);
+        } catch (Exception | LinkageError e) { state(R.string.no_connection, R.string.retry_error); }
     }
     private void post(Runnable task) {
         try { if (!worker.isShutdown()) worker.execute(task); }
@@ -177,7 +177,7 @@ public final class TunnelService extends VpnService {
         profile = null;
         if (wake != null) { if (wake.isHeld()) wake.release(); wake = null; }
         VpnState.running = false;
-        if (hadSession) { VpnState.message = "Отключено"; VpnState.detail = "Обычное подключение к сети"; VpnState.stats = "{}"; }
+        if (hadSession) { VpnState.message = R.string.disconnected; VpnState.detail = R.string.normal_network; VpnState.stats = "{}"; }
         stopForeground(STOP_FOREGROUND_REMOVE);
     }
     @Override public void onRevoke() { post(() -> { closeSession(); stopSelf(); }); }

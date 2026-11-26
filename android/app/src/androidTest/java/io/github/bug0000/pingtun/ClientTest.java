@@ -42,7 +42,7 @@ public final class ClientTest {
         android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
-            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "bug@pizd.ec"));
+            assertTrue(contains(root, context.getString(R.string.about))); assertTrue(contains(root, "bug@pizd.ec"));
             assertTrue(contains(root, BuildConfig.VERSION_NAME)); assertTrue(contains(root, "ICMP"));
             assertFalse(contains(root, "Pixel")); assertFalse(contains(root, "эксперимент"));
         });
@@ -61,8 +61,8 @@ public final class ClientTest {
         android.os.SystemClock.sleep(800);
         instrumentation.runOnMainSync(() -> {
             android.view.View root = activity.getWindow().getDecorView();
-            assertTrue(contains(root, "О приложении")); assertTrue(contains(root, "Импортировать профиль"));
-            assertTrue(contains(root, "Подключить")); assertFalse(contains(root, "Pixel"));
+            assertTrue(contains(root, context.getString(R.string.about))); assertTrue(contains(root, context.getString(R.string.import_profile)));
+            assertTrue(contains(root, context.getString(R.string.connect))); assertFalse(contains(root, "Pixel"));
             assertFalse(contains(root, "эксперимент"));
         });
         android.graphics.Bitmap screenshot = instrumentation.getUiAutomation().takeScreenshot();
@@ -70,6 +70,20 @@ public final class ClientTest {
         try (java.io.FileOutputStream out = context.openFileOutput("main-preview.png", Context.MODE_PRIVATE)) {
             screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out);
         } finally { screenshot.recycle(); instrumentation.runOnMainSync(activity::finish); }
+    }
+    @Test public void englishAndRussianResourcesAreAvailable() {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        android.content.res.Configuration config = new android.content.res.Configuration(context.getResources().getConfiguration());
+        config.setLocale(java.util.Locale.ENGLISH);
+        Context english = context.createConfigurationContext(config);
+        assertEquals("Connect", english.getString(R.string.connect));
+        assertEquals("Disconnected", english.getString(R.string.disconnected));
+        assertEquals("VPN connection", english.getString(R.string.vpn_channel));
+        config.setLocale(new java.util.Locale("ru"));
+        Context russian = context.createConfigurationContext(config);
+        assertEquals("Подключить", russian.getString(R.string.connect));
+        assertEquals("Отключено", russian.getString(R.string.disconnected));
+        assertEquals("Соединение VPN", russian.getString(R.string.vpn_channel));
     }
     @Test public void nativeProfileValidationExposesNoKeys() throws Exception {
         JSONObject info = new JSONObject(NativeEngine.inspect(profile()));
