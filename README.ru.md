@@ -1,8 +1,8 @@
 # pingtun
 
-[English](README.md) · [Установка](INSTALL.ru.md) · [Релиз 0.4.1](https://github.com/bug0000/pingtun/releases/tag/v0.4.1)
+[English](README.md) · [Установка](INSTALL.ru.md) · [Релиз 0.4.2](https://github.com/bug0000/pingtun/releases/tag/v0.4.2)
 
-**pingtun 0.4.1** — шифрованный IPv4 VPN поверх ICMP Echo Request/Reply.
+**pingtun 0.4.2** — шифрованный IPv4 VPN поверх ICMP Echo Request/Reply.
 Один Linux-бинарник работает сервером или консольным клиентом. Android-клиент
 использует системный VPN и ICMP datagram sockets, без root и Google Play
 Services. Обмен ключами, шифрование и защиту от повторов обеспечивает
@@ -10,11 +10,11 @@ WireGuard-go. Собственный транспорт написан на Go; 
 
 ## Скачать
 
-В [GitHub Release](https://github.com/bug0000/pingtun/releases/tag/v0.4.1) доступны
+В [GitHub Release](https://github.com/bug0000/pingtun/releases/tag/v0.4.2) доступны
 архивы Linux amd64/arm64, подписанный APK для Android 10+, SHA256SUMS и лицензии.
-Android 0.4.1 (versionCode 3): новый интерфейс, адаптивная иконка и раздел
-«О приложении». Подпись сохранена — APK устанавливается поверх прошлой версии. Закрытый ключ подписи,
-VPN-профили и рабочие конфигурации не публикуются. В версии разработки интерфейс поддерживает английский и русский языки в соответствии с языком устройства; APK 0.4.1 использует русский.
+В Android 0.4.2 интерфейс использует русский или английский в зависимости
+от языка устройства. Исправлен доступ к профилю при импорте и запуске VPN.
+APK подписан прежним ключом. Установите его поверх 0.4.1, чтобы сохранить профиль.
 
 ## Возможности и границы
 

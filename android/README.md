@@ -1,4 +1,4 @@
-# Android client — pingtun 0.4.1
+# Android client — pingtun 0.4.2
 
 Native Android client for pingtun, Android 10/API 29 and newer, with a clean
 connection screen, adaptive/themed launcher icon and a separate About screen.
@@ -8,8 +8,8 @@ root nor Google Play Services. ICMP availability depends on network policy.
 
 ## Connect
 
-1. Install `pingtun_0.4.1_android.apk` from the GitHub release. It retains the
-   previous app's signing identity (versionCode 3) and can update it in place.
+1. Install `pingtun_0.4.2_android.apk` from the GitHub release. It retains the
+   previous app's signing identity (versionCode 4) and can update it in place.
    Do not uninstall first if you want to keep the imported profile. CI debug
    APKs are for development and use a different signing identity.
 2. Generate a **separate** mobile profile and server configuration:

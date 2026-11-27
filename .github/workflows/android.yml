@@ -94,13 +94,14 @@ jobs:
       - name: Launch the signed release APK
         if: hashFiles('release-artifacts.json') != ''
         run: |
+          read -r android_version android_version_code < <(python3 -c 'import json; m = json.load(open("release-artifacts.json")); print(m["android_version"], m["android_version_code"])')
           adb uninstall io.github.bug0000.pingtun
-          curl --fail --location --retry 3 https://github.com/bug0000/pingtun/releases/download/v0.4.0/pingtun_0.3.0_android.apk --output /tmp/pingtun-previous.apk
-          echo '05ca5d0c6981bba61c088584652677e5534e57a75d139cc72c39d52419ed5350  /tmp/pingtun-previous.apk' | sha256sum --check
+          curl --fail --location --retry 3 https://github.com/bug0000/pingtun/releases/download/v0.4.1/pingtun_0.4.1_android.apk --output /tmp/pingtun-previous.apk
+          echo '79793d25206c07b6ef30639304e40f0737e83f32b794c7e53c8f73b2850c107e  /tmp/pingtun-previous.apk' | sha256sum --check
           adb install /tmp/pingtun-previous.apk
-          adb install -r dist/pingtun_0.4.1_android.apk
-          adb shell dumpsys package io.github.bug0000.pingtun | grep -F 'versionCode=3'
-          adb shell dumpsys package io.github.bug0000.pingtun | grep -F 'versionName=0.4.1'
+          adb install -r "dist/pingtun_${android_version}_android.apk"
+          adb shell dumpsys package io.github.bug0000.pingtun | grep -F "versionCode=${android_version_code} "
+          adb shell dumpsys package io.github.bug0000.pingtun | grep -F "versionName=${android_version}"
           adb shell am start -W io.github.bug0000.pingtun/.MainActivity
           sleep 2
           adb shell pidof io.github.bug0000.pingtun

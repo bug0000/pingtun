@@ -1,5 +1,17 @@
 # Changelog / История изменений
 
+## 0.4.2 — 2026-11-27
+
+- Added an English Android interface alongside Russian. The app follows the
+  device language.
+- Coordinated encrypted profile import and replacement with VPN startup.
+- Signed Android versionCode 4 with the previous release key. Verified an
+  in-place upgrade from 0.4.1 and profile retention on Android 15.
+
+Android-клиент выбирает русский или английский по языку устройства. Исправлен
+доступ к профилю при импорте и запуске VPN. Проверено обновление поверх 0.4.1
+с сохранением профиля на Android 15.
+
 ## 0.4.1 — 2026-10-21
 
 - Redesigned native Android UI: dark palette, large connection control, compact

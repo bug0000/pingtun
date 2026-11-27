@@ -24,7 +24,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const version = "0.4.1"
+const version = "0.4.2"
 
 func main() {
 	if e := run(os.Args[1:]); e != nil {

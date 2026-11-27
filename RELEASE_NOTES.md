@@ -1,40 +1,17 @@
-# pingtun 0.4.1 — Android: красиво и чисто
+# pingtun 0.4.2
 
 ## Русский
 
-Обновлён Android-клиент: спокойная тёмная палитра, крупная кнопка подключения,
-компактные карточки профиля и статистики. Параметры фоновой работы вынесены
-в отдельное окно настроек. Добавлены адаптивная и монохромная иконки Android
-и новый значок уведомления.
+Интерфейс Android-клиента доступен на русском и английском. Приложение выбирает язык по настройкам устройства. Импорт и замена профиля теперь согласованы с чтением зашифрованных данных при запуске VPN.
 
-Раздел «О приложении» содержит описание ICMP-туннеля и WireGuard, версию,
-ссылку на исходники и контакт **bug@pizd.ec**. В пользовательских текстах нет
-экспериментальных формулировок, модели телефона и персональных подробностей.
+Установите `pingtun_0.4.2_android.apk` (versionCode 4) поверх 0.4.1, чтобы сохранить импортированный профиль. APK подписан прежним ключом. Обновление, сохранение профиля и его замена проверены в эмуляторе Android 15. Поддерживаются Android 10+, ARM64 и x86_64.
 
-`pingtun_0.4.1_android.apk` (versionCode 3) подписан прежним сертификатом.
-Устанавливайте поверх существующей версии: удалять приложение не нужно,
-импортированный профиль сохранится. Сервер и профиль для изменения оформления
-обновлять не требуется. Android 10+, ARM64/x86_64, без root и Google Play Services.
-
-Linux-архивы также имеют версию 0.4.1 и содержат админку из 0.4.0.
-Все файлы снабжены SHA256SUMS и уведомлениями о лицензиях.
-
-Транспорт не менялся: IPv4 внутри ICMP, IPv6 на Android блокируется.
-Работа зависит от доступности ICMP в сети. Длительный сон, смена сетей и
-системная блокировка требуют дальнейших испытаний на физических устройствах.
+В релиз вошли архивы Linux amd64 и arm64 с сервером, консольным клиентом и веб-админкой, а также контрольные суммы SHA-256 и лицензионные уведомления. Существующие конфигурации и профили совместимы с обновлением.
 
 ## English
 
-Android 0.4.1 adds a clean dark interface, prominent connection control,
-profile/traffic cards, separate connection settings, adaptive/themed launcher
-icons and a new notification mark. About explains the ICMP/WireGuard tunnel
-and includes version, source link and **bug@pizd.ec**.
+The Android client uses Russian or English based on the device language. Profile import and replacement now synchronize access to encrypted profile data with VPN startup.
 
-The APK uses versionCode 3 and retains its release signing certificate.
-Install over the previous version to preserve the imported profile. No server
-or profile changes are needed for this UI update. Android 10+, ARM64/x86_64,
-no root or Google Play Services required. Linux 0.4.1 retains the 0.4.0 admin console.
+Install `pingtun_0.4.2_android.apk` (versionCode 4) over 0.4.1 to keep the imported profile. The APK retains the previous release signing certificate. The in-place update, profile retention, and profile replacement were tested on an Android 15 emulator. The APK supports Android 10+ on ARM64 and x86_64.
 
-Transport is unchanged: IPv4 over ICMP; Android captures and blocks IPv6.
-ICMP availability is network-dependent. Long sleep, handoff and lockdown
-remain further physical-device acceptance work.
+The release includes Linux amd64 and arm64 archives with the server, CLI client, and web admin console, plus SHA-256 checksums and license notices. Existing configurations and profiles remain compatible.
