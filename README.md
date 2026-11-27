@@ -1,3 +1,3 @@
-# Public release payload: 0.3.0
+# Signed pingtun 0.4.2 Android APK
 
-These ordered chunks contain the gzip-compressed, signed public Android APK. They preserve the blobs referenced by release-artifacts.json. No signing keys or private VPN profiles are stored here.
+The numbered files contain the gzip-compressed, signed release APK. They are listed in order in the source branch’s `release-artifacts.json`. Download the APK from the GitHub release for installation.
